@@ -1,0 +1,206 @@
+@import '~@microsoft/sp-office-ui-fabric-core/dist/sass/SPFabricCore.scss';
+
+.uploadCsv {
+  font-family: "Segoe UI WestEuropean", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", sans-serif;
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+
+  .header {
+    @include ms-font-xxl;
+    color: $ms-color-themePrimary;
+    margin-bottom: 4px;
+  }
+
+  .subHeader {
+    @include ms-font-m;
+    color: $ms-color-neutralSecondary;
+    margin-bottom: 20px;
+  }
+
+  // ─── Selector Row ─────────────────────────────────────────────
+  .selectorRow {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+
+  .selectorColumn {
+    flex: 1 1 250px;
+    min-width: 220px;
+  }
+
+  // ─── Drop Zone ────────────────────────────────────────────────
+  .dropZone {
+    border: 2px dashed $ms-color-neutralTertiary;
+    border-radius: 4px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background-color: $ms-color-neutralLighterAlt;
+    margin-bottom: 20px;
+
+    &:hover {
+      border-color: $ms-color-themePrimary;
+      background-color: $ms-color-themeLighter;
+    }
+  }
+
+  .dropZoneActive {
+    border-color: $ms-color-themePrimary;
+    background-color: $ms-color-themeLighter;
+    border-style: solid;
+  }
+
+  .dropZoneIcon {
+    font-size: 48px;
+    color: $ms-color-themePrimary;
+    display: block;
+    margin-bottom: 12px;
+  }
+
+  .dropZoneText {
+    @include ms-font-m;
+    color: $ms-color-neutralPrimary;
+  }
+
+  // ─── Mapping Table ────────────────────────────────────────────
+  .mappingTableContainer {
+    margin-bottom: 20px;
+    overflow-x: auto;
+  }
+
+  .mappingTable {
+    width: 100%;
+    border-collapse: collapse;
+    border: 1px solid $ms-color-neutralLight;
+  }
+
+  .mappingTableHeader {
+    @include ms-font-m;
+    font-weight: 600;
+    text-align: left;
+    padding: 10px 12px;
+    background-color: $ms-color-themePrimary;
+    color: $ms-color-white;
+    border: 1px solid $ms-color-themeDark;
+    white-space: nowrap;
+  }
+
+  .mappingRow {
+    &:nth-child(even) {
+      background-color: $ms-color-neutralLighterAlt;
+    }
+
+    &:hover {
+      background-color: $ms-color-themeLighter;
+    }
+  }
+
+  .mappingRowRequired {
+    background-color: #fff4ce;
+
+    &:hover {
+      background-color: #ffe8a1;
+    }
+  }
+
+  .mappingTableCell {
+    padding: 8px 12px;
+    border: 1px solid $ms-color-neutralLight;
+    vertical-align: middle;
+  }
+
+  .fieldName {
+    @include ms-font-m;
+    font-weight: 600;
+    display: block;
+  }
+
+  .fieldInternalName {
+    @include ms-font-xs;
+    color: $ms-color-neutralSecondary;
+    display: block;
+  }
+
+  .fieldType {
+    @include ms-font-s;
+    color: $ms-color-neutralSecondary;
+    white-space: nowrap;
+  }
+
+  .requiredYes {
+    @include ms-font-s;
+    font-weight: 600;
+    color: $ms-color-red;
+  }
+
+  .requiredNo {
+    @include ms-font-s;
+    color: $ms-color-neutralSecondary;
+  }
+
+  // ─── Buttons ──────────────────────────────────────────────────
+  .buttonRow {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+    margin-bottom: 20px;
+  }
+
+  // ─── Progress ─────────────────────────────────────────────────
+  .progressContainer {
+    margin: 20px 0;
+  }
+
+  .messageBar {
+    margin-top: 12px;
+  }
+
+  .errorList {
+    margin-top: 12px;
+    padding: 12px;
+    background-color: #fde7e9;
+    border-radius: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+
+    ul {
+      margin: 4px 0 0 0;
+      padding-left: 20px;
+    }
+
+    li {
+      @include ms-font-s;
+      color: $ms-color-neutralPrimary;
+      margin-bottom: 2px;
+    }
+  }
+
+  // ─── Section ──────────────────────────────────────────────────
+  .section {
+    margin-bottom: 24px;
+  }
+
+  .sectionTitle {
+    @include ms-font-l;
+    color: $ms-color-themePrimary;
+    margin-bottom: 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid $ms-color-neutralLight;
+  }
+
+  .validationMessage {
+    @include ms-font-s;
+    color: $ms-color-red;
+    margin-top: 8px;
+    padding: 8px 12px;
+    background-color: #fde7e9;
+    border-radius: 4px;
+  }
+}

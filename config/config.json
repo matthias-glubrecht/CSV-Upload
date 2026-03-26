@@ -1,0 +1,18 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/config.2.0.schema.json",
+  "version": "2.0",
+  "bundles": {
+    "upload-csv-web-part": {
+      "components": [
+        {
+          "entrypoint": "./lib/webparts/uploadCsv/UploadCsvWebPart.js",
+          "manifest": "./src/webparts/uploadCsv/UploadCsvWebPart.manifest.json"
+        }
+      ]
+    }
+  },
+  "externals": {},
+  "localizedResources": {
+    "UploadCsvWebPartStrings": "lib/webparts/uploadCsv/loc/{locale}.js"
+  }
+}
