@@ -89,6 +89,25 @@ define([], function() {
     "ErrorCreatingItem": "Fehler beim Erstellen: ",
     "ErrorUpdatingItem": "Fehler beim Aktualisieren (ID {0}): ",
     "ErrorSettingTaxonomyField": "Fehler beim Setzen des Taxonomie-Feldes: ",
-    "ErrorSettingTaxonomyMultiField": "Fehler beim Setzen des Taxonomie-Multi-Feldes: "
+    "ErrorSettingTaxonomyMultiField": "Fehler beim Setzen des Taxonomie-Multi-Feldes: ",
+    "ErrorTaxonomyTermNotFound": "Der Wert \"{0}\" wurde im Termset für das Feld \"{1}\" nicht gefunden.",
+    "ErrorTaxonomyTermNotInTermSet": "Der Wert \"{0}\" konnte nicht in das Feld \"{1}\" geschrieben werden, da er nicht im zugehörigen Termset vorkommt.",
+    "ErrorChoiceValueInvalid": "Der Wert \"{0}\" ist keine gültige Auswahl für das Feld \"{1}\". Aktivieren Sie \"Freie Eingabe\", um benutzerdefinierte Werte zuzulassen.",
+    "ErrorMultiChoiceValuesInvalid": "Die folgenden Werte sind keine gültigen Auswahloptionen für das Feld \"{1}\": {0}. Aktivieren Sie \"Freie Eingabe\", um benutzerdefinierte Werte zuzulassen.",
+    "ErrorLookupValueNotFound": "Der Wert \"{0}\" wurde in der Nachschlageliste für das Feld \"{1}\" nicht gefunden.",
+    "ErrorLookupValuesNotFound": "Die folgenden Werte wurden in der Nachschlageliste für das Feld \"{1}\" nicht gefunden: {0}.",
+    "ErrorUserNotFound": "Der Benutzer \"{0}\" konnte für das Feld \"{1}\" nicht aufgelöst werden.",
+    "ErrorUsersNotFound": "Die folgenden Benutzer konnten für das Feld \"{1}\" nicht aufgelöst werden: {0}.",
+
+    "FieldErrorDialogTitle": "Wert konnte nicht verarbeitet werden",
+    "FieldErrorDialogRowLabel": "Zeile",
+    "FieldErrorDialogFieldLabel": "Feld",
+    "FieldErrorDialogValueLabel": "Wert",
+    "FieldErrorDialogErrorLabel": "Problem",
+    "FieldErrorDialogCorrectedValueLabel": "Korrigierter Wert",
+    "FieldErrorDialogCorrectedValuePlaceholder": "Neuen Wert eingeben oder leer lassen, um das Feld zu überspringen...",
+    "FieldErrorDialogUseValueButton": "Korrigierten Wert verwenden",
+    "FieldErrorDialogSkipFieldButton": "Feld überspringen",
+    "FieldErrorDialogSkipRowButton": "Ganze Zeile überspringen"
   }
 });

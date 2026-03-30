@@ -89,6 +89,25 @@ define([], function() {
     "ErrorCreatingItem": "Error creating item: ",
     "ErrorUpdatingItem": "Error updating item (ID {0}): ",
     "ErrorSettingTaxonomyField": "Error setting taxonomy field: ",
-    "ErrorSettingTaxonomyMultiField": "Error setting multi-value taxonomy field: "
+    "ErrorSettingTaxonomyMultiField": "Error setting multi-value taxonomy field: ",
+    "ErrorTaxonomyTermNotFound": "The value \"{0}\" could not be found in the term set for field \"{1}\".",
+    "ErrorTaxonomyTermNotInTermSet": "The value \"{0}\" could not be written to field \"{1}\" because it does not occur in the associated term set.",
+    "ErrorChoiceValueInvalid": "The value \"{0}\" is not a valid choice for field \"{1}\". Enable \"Allow fill-in\" to allow custom values.",
+    "ErrorMultiChoiceValuesInvalid": "The following values are not valid choices for field \"{1}\": {0}. Enable \"Allow fill-in\" to allow custom values.",
+    "ErrorLookupValueNotFound": "The value \"{0}\" could not be found in the lookup list for field \"{1}\".",
+    "ErrorLookupValuesNotFound": "The following values could not be found in the lookup list for field \"{1}\": {0}.",
+    "ErrorUserNotFound": "The user \"{0}\" could not be resolved for field \"{1}\".",
+    "ErrorUsersNotFound": "The following users could not be resolved for field \"{1}\": {0}.",
+
+    "FieldErrorDialogTitle": "Value could not be processed",
+    "FieldErrorDialogRowLabel": "Row",
+    "FieldErrorDialogFieldLabel": "Field",
+    "FieldErrorDialogValueLabel": "Value",
+    "FieldErrorDialogErrorLabel": "Problem",
+    "FieldErrorDialogCorrectedValueLabel": "Corrected value",
+    "FieldErrorDialogCorrectedValuePlaceholder": "Enter a new value or leave empty to skip this field...",
+    "FieldErrorDialogUseValueButton": "Use corrected value",
+    "FieldErrorDialogSkipFieldButton": "Skip field",
+    "FieldErrorDialogSkipRowButton": "Skip entire row"
   }
 });

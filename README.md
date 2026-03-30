@@ -1,5 +1,7 @@
 # CSV Upload – SharePoint Framework Web Part
 
+**Version 1.1.0**
+
 Ein SPFx-Web-Part zum Importieren von CSV-Dateien in SharePoint-Listen.
 
 ## Funktionsumfang
@@ -8,10 +10,13 @@ Ein SPFx-Web-Part zum Importieren von CSV-Dateien in SharePoint-Listen.
 - **Website auswählen** — Dropdown aller Unterwebsites der gewählten Websitesammlung
 - **Liste auswählen** — Dropdown aller benutzerdefinierten Listen (keine Dokumentbibliotheken)
 - **CSV-Datei hochladen** — Drag & Drop oder Dateiauswahl-Dialog
+- **Automatische Zeichenkodierungs-Erkennung** — UTF-8 (mit/ohne BOM), UTF-16 LE und Windows-1252 (Excel-Standard) werden automatisch erkannt
 - **Automatisches Feld-Mapping** — Abgleich der CSV-Spaltenüberschriften mit Anzeige- und internem Feldnamen
 - **Schlüsselspalte** — Optional kann eine Spalte als Schlüssel markiert werden, um bestehende Einträge zu aktualisieren (Upsert)
 - **Defaultwerte** — Für Pflichtfelder (die nicht Schlüssel sind) können Defaultwerte angegeben werden
 - **Fortschrittsanzeige** — Zeigt den Importfortschritt mit Zählern für erstellt/aktualisiert/Fehler
+- **Interaktiver Fehler-Dialog** — Bei nicht auflösbaren Werten (Benutzer, Nachschlagen, Auswahl, Taxonomie) wird ein Dialog angezeigt, in dem der Benutzer den Wert korrigieren, das Feld überspringen oder die gesamte Zeile überspringen kann
+- **Benutzerfreundliche Fehlermeldungen** — SharePoint-REST-Fehler werden in verständliche Meldungen übersetzt
 
 ### Unterstützte Feldtypen
 
@@ -21,11 +26,19 @@ Ein SPFx-Web-Part zum Importieren von CSV-Dateien in SharePoint-Listen.
 | Zahl, Währung | Komma → Punkt Konvertierung |
 | Datum/Uhrzeit | Deutsche (`DD.MM.YYYY`), ISO- und US-Formate; `[Heute]`/`[Today]` als Defaultwert |
 | Ja/Nein | Erkennt `true`, `1`, `ja`, `yes`, `wahr` |
-| Auswahl / Mehrfachauswahl | Optional mit freier Eingabe (Werte außerhalb der Auswahlliste) |
-| Nachschlagen | Automatische Auflösung des Anzeigewerts zur Item-ID |
-| Person | Auflösung über `ensureUser` oder Anzeigename |
-| Hyperlink | Format: `URL, Beschreibung` |
-| Verwaltete Metadaten | Auflösung über TaxonomyHiddenList, Schreiben via `ValidateUpdateListItem` |
+| Auswahl / Mehrfachauswahl | Optional mit freier Eingabe; ungültige Werte werden mit Fehlermeldung zurückgewiesen |
+| Nachschlagen / Nachschlagen (mehrere) | Automatische Auflösung des Anzeigewerts zur Item-ID; nicht auflösbare Werte werden gemeldet |
+| Person / Person (mehrere) | Auflösung über `ensureUser` oder Anzeigename; nicht auflösbare Benutzer werden gemeldet |
+| Hyperlink | Format: `URL, Beschreibung`; URLs ohne Protokoll erhalten automatisch `https://` |
+| Verwaltete Metadaten | Auflösung über TaxonomyHiddenList mit Fallback auf den Term Store via `@pnp/sp-taxonomy` |
+| Verwaltete Metadaten (mehrere) | Schreiben über das versteckte Note-Feld; mehrteilige Werte durch `;` getrennt |
+
+### SharePoint-Export-Kompatibilität
+
+Der Web Part erkennt und verarbeitet automatisch das SharePoint-Exportformat für Taxonomie-Felder:
+- Einzel: `6;#Einsatz` → `Einsatz`
+- Mehrfach: `12;#Lehre;#13;#Forschung` → `Lehre`, `Forschung`
+- Sonderfall: `22;##IT-Verfahren` → `IT-Verfahren` (Extra-`#` wird entfernt)
 
 ## Technologie-Stack
 
@@ -34,7 +47,7 @@ Ein SPFx-Web-Part zum Importieren von CSV-Dateien in SharePoint-Listen.
 | SPFx-Version | 1.4.1 |
 | React | 15.6.2 (Klassenkomponenten) |
 | UI-Bibliothek | office-ui-fabric-react v5 |
-| Datenzugriff | @pnp/sp ^1.3.11 |
+| Datenzugriff | @pnp/sp ^1.3.11, @pnp/sp-taxonomy ^1.3.11 |
 | TypeScript-Ziel | ES5 |
 | Build-Tool | Gulp 3.9 |
 | Lokalisierung | Deutsch (de-de), Englisch (en-us) |
@@ -46,18 +59,20 @@ src/webparts/uploadCsv/
 ├── UploadCsvWebPart.ts              # WebPart-Klasse (Einstiegspunkt)
 ├── components/
 │   ├── UploadCsv.tsx                # Hauptkomponente (Orchestrierung)
+│   ├── UploadCsv.module.scss        # Gemeinsame Styles (CSS Modules)
 │   ├── SiteCollectionPicker/        # Websitesammlungs-Auswahl (ComboBox)
 │   ├── WebPicker/                   # Website-Auswahl (Dropdown)
 │   ├── ListPicker/                  # Listen-Auswahl (Dropdown)
 │   ├── CsvDropZone/                 # Drag & Drop / Dateiauswahl
 │   ├── MappingTable/                # Feldzuordnungstabelle
-│   └── ImportProgress/              # Fortschrittsanzeige
+│   ├── ImportProgress/              # Fortschrittsanzeige
+│   └── FieldErrorDialog/            # Interaktiver Fehler-Dialog für Feldwerte
 ├── service/
-│   └── CsvUploadService.ts          # Datenzugriff via @pnp/sp
+│   └── CsvUploadService.ts          # Datenzugriff via @pnp/sp + @pnp/sp-taxonomy
 ├── models/
 │   └── IModels.ts                   # TypeScript-Interfaces
 ├── utils/
-│   └── CsvParser.ts                 # CSV-Parser mit Delimiter-Erkennung
+│   └── CsvParser.ts                 # CSV-Parser mit Delimiter- und Encoding-Erkennung
 └── loc/
     ├── mystrings.d.ts               # String-Typdefinitionen
     ├── en-us.js                     # Englische Übersetzungen

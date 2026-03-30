@@ -62,6 +62,8 @@ export interface IListField {
   lookupWebId?: string;
   /** For taxonomy fields: term set id */
   termSetId?: string;
+  /** For taxonomy fields: term store id (SspId) */
+  sspId?: string;
   /** For taxonomy fields: the hidden note field internal name (e.g. TaxCatchAll) */
   taxonomyHiddenFieldName?: string;
   /** Default value from the list field definition */
@@ -104,3 +106,29 @@ export interface IImportProgress {
   errorMessages: string[];
   status: 'idle' | 'running' | 'completed' | 'error';
 }
+
+/**
+ * Describes a field-level error during import that the user can correct.
+ */
+export interface IFieldErrorInfo {
+  /** Row number (1-based) where the error occurred */
+  rowNumber: number;
+  /** Display name of the SharePoint field */
+  fieldDisplayName: string;
+  /** Internal name of the SharePoint field */
+  fieldInternalName: string;
+  /** Field type (Choice, Lookup, User, etc.) */
+  fieldType: SpFieldType;
+  /** The CSV value that caused the error */
+  csvValue: string;
+  /** User-friendly error description */
+  errorMessage: string;
+}
+
+/**
+ * User decision for how to handle a field error.
+ */
+export type FieldErrorDecision =
+  | { action: 'use-value'; newValue: string }
+  | { action: 'skip-field' }
+  | { action: 'skip-row' };

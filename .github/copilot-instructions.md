@@ -105,7 +105,7 @@ This three-layer approach (modal container → dialog content → inner div) kee
 - All user-facing strings are defined in the `loc/` folder. Add new string keys to `mystrings.d.ts` and provide translations in each locale file (`en-us.js`, `de-de.js`, etc.).
 - Import strings via the SPFx localization module:
   ```ts
-  import * as strings from 'ListViewerWebPartStrings';
+  import * as strings from 'UploadCsvWebPartStrings';
   ```
 - Never hard-code user-visible text in components.
 
@@ -116,7 +116,17 @@ The UI strings are in **German** (e.g., "Tippen zum Suchen…", "Filtern nach ei
 
 1. **Boolean values invisible in React 15**: `{true}` and `{false}` render as empty string in JSX. Always use an `onRender` callback for Boolean columns.
 
-2. **SCSS type definitions out of sync**: When adding new CSS classes (e.g., `.resultsTableWrapper`, `.horizontalResizer`), you must manually add entries to `lib/webparts/smartFilter/components/SmartFilter.module.scss.d.ts` until the next `gulp bundle` regenerates it. Check the file for the current hash suffix.
+2. **SCSS type definitions out of sync**: When adding new CSS classes, you must manually add entries to `UploadCsv.module.scss.ts` until the next `gulp bundle` regenerates it. Check the file for the current hash suffix (e.g., `_5a4fb910`).
+
+3. **Taxonomy GUID format from `@pnp/sp-taxonomy`**: The term store API returns GUIDs wrapped as `/Guid(xxxx-xxxx)/`. The code normalises these by stripping the wrapper via regex before passing to SharePoint REST.
+
+4. **SharePoint export format for taxonomy fields**: SharePoint's "Export to Excel" writes taxonomy values as `<wssId>;#<label>` (single) or `<wssId>;#<label>;#<wssId>;#<label>` (multi). The parser (`_parseTaxonomyExportValue`) detects and strips these numeric prefixes. SharePoint may also insert an extra `#` before labels (e.g., `22;##IT-Verfahren`) which is stripped.
+
+5. **CSV encoding detection**: The `decodeCsvBytes` function in `CsvParser.ts` performs byte-level UTF-8 validation (not relying on `TextDecoder({ fatal: true })` which some browsers ignore). It falls back to a manual Windows-1252 decoder to avoid depending on browser `TextDecoder` support for that encoding.
+
+6. **Field error handling during import**: When a field value cannot be resolved (user, lookup, choice, taxonomy), a `FieldErrorDialog` is shown that pauses the import chain via a stored Promise resolve callback. The user can correct the value, skip the field, or skip the entire row.
+
+7. **URL field auto-prefix**: URLs without a protocol scheme get `https://` prepended. The description is derived from the hostname if not explicitly provided.
 
 ### Versioning
-We keeo the version number in package-solution.json (a.b.c.0) and package.json (a.b.c) in sync
+We keep the version number in package-solution.json (a.b.c.0) and package.json (a.b.c) in sync

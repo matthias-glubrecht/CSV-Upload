@@ -1,6 +1,8 @@
 // tslint:disable:no-any
 import { WebPartContext } from '@microsoft/sp-webpart-base';
 import { sp, Web, SearchResults } from '@pnp/sp';
+import { taxonomy, ITermStore } from '@pnp/sp-taxonomy';
+import * as strings from 'UploadCsvWebPartStrings';
 import {
   ISiteCollection,
   IWeb,
@@ -8,6 +10,8 @@ import {
   IListField,
   SpFieldType
 } from '../models';
+
+const LOG: string = '[CsvUpload]';
 
 /**
  * Service class encapsulating all SharePoint data access
@@ -144,7 +148,7 @@ export default class CsvUploadService {
       .select(
         'InternalName', 'Title', 'TypeAsString', 'Required',
         'Choices', 'LookupList', 'LookupField', 'LookupWebId',
-        'TermSetId', 'DefaultValue'
+        'TermSetId', 'SspId', 'DefaultValue'
       )
       .get()
       .then((data: any[]) => {
@@ -180,12 +184,22 @@ export default class CsvUploadService {
             lookupFieldName: f.LookupField || undefined,
             lookupWebId: f.LookupWebId || undefined,
             termSetId: f.TermSetId || undefined,
+            sspId: f.SspId || undefined,
             defaultValue: f.DefaultValue || undefined
           });
         });
         return this._enrichTaxonomyFields(
           webUrl, listId, fields
-        );
+        ).then((enriched: IListField[]) => {
+          console.log(LOG, 'Fields loaded:', enriched.length,
+            enriched.map((f: IListField) => ({
+              name: f.internalName, type: f.fieldType,
+              termSetId: f.termSetId, sspId: f.sspId,
+              taxHidden: f.taxonomyHiddenFieldName
+            }))
+          );
+          return enriched;
+        });
       });
   }
 
@@ -269,6 +283,11 @@ export default class CsvUploadService {
 
   /**
    * Resolve a taxonomy value by label.
+   * First searches TaxonomyHiddenList (fast, works for terms
+   * already used on this site). If not found there, falls back
+   * to searching the TaxonomyHiddenList without a term-set
+   * filter (the term may exist under a different term set in the
+   * hidden list with a matching title).
    */
   public resolveTaxonomyValue(
     webUrl: string,
@@ -277,6 +296,7 @@ export default class CsvUploadService {
   ): Promise<{
     wssId: number; label: string; termGuid: string
   } | undefined> {
+    console.log(LOG, 'resolveTaxonomyValue called — termSetId:', termSetId, 'label:', JSON.stringify(label));
     const web: Web = new Web(webUrl);
     return web.lists.getByTitle('TaxonomyHiddenList').items
       .filter(
@@ -286,6 +306,9 @@ export default class CsvUploadService {
       .top(1)
       .get()
       .then((items: any[]) => {
+        console.log(LOG, 'resolveTaxonomyValue result for',
+          JSON.stringify(label), '— items returned:',
+          items.length, items);
         if (items.length > 0) {
           return {
             wssId: items[0].Id,
@@ -295,7 +318,77 @@ export default class CsvUploadService {
         }
         return undefined;
       })
-      .catch(() => undefined);
+      .catch((err: Error) => {
+        console.warn(LOG, 'resolveTaxonomyValue ERROR for', JSON.stringify(label), err);
+        return undefined;
+      });
+  }
+
+  /**
+   * Search the term store for a term by label within a term set.
+   * Uses @pnp/sp-taxonomy to get all terms from the term set
+   * and finds the matching one by name.
+   * Returns the term GUID if found (wssId will be -1 since
+   * the term is not yet in TaxonomyHiddenList).
+   */
+  public resolveTermFromStore(
+    _webUrl: string,
+    termSetId: string,
+    label: string,
+    sspId?: string
+  ): Promise<{
+    wssId: number; label: string; termGuid: string
+  } | undefined> {
+    console.log(LOG, 'resolveTermFromStore called — termSetId:',
+      termSetId, 'sspId:', sspId, 'label:', JSON.stringify(label));
+    const store: ITermStore = sspId
+      ? taxonomy.termStores.getById(sspId)
+      : taxonomy.getDefaultSiteCollectionTermStore();
+    return store.getTermSetById(termSetId).terms.get()
+      .then((terms: any[]) => {
+        console.log(LOG, 'resolveTermFromStore — terms in set:',
+          terms.length,
+          terms.map((t: any) => ({ Name: t.Name, Id: t.Id })));
+        // Log raw first term object so we can see the exact GUID format
+        if (terms.length > 0) {
+          console.log(LOG, 'resolveTermFromStore — RAW first term object:',
+            JSON.stringify(terms[0]));
+        }
+        let match: any = undefined;
+        for (let i: number = 0; i < terms.length; i++) {
+          if (terms[i].Name === label) {
+            match = terms[i];
+            break;
+          }
+        }
+        if (match) {
+          // tslint:disable-next-line:no-any
+          const rawGuid: string = match.Id || '';
+          // Normalise GUID: strip /Guid(...)/ wrapper and curly braces
+          const cleanGuid: string = rawGuid
+            .replace(/^\/Guid\((.*)\)\/$/i, '$1')
+            .replace(/^\{|\}$/g, '');
+          console.log(LOG, 'resolveTermFromStore found:',
+            match.Name,
+            'rawGuid:', JSON.stringify(rawGuid),
+            'cleanGuid:', JSON.stringify(cleanGuid));
+          return {
+            wssId: -1,
+            label: match.Name || label,
+            termGuid: cleanGuid
+          };
+        }
+        console.warn(LOG, 'resolveTermFromStore — term not found for label:',
+          JSON.stringify(label),
+          '— available names:',
+          terms.map((t: any) => t.Name));
+        return undefined;
+      })
+      .catch((err: Error) => {
+        console.warn(LOG, 'resolveTermFromStore ERROR for',
+          JSON.stringify(label), err);
+        return undefined;
+      });
   }
 
   // ─── Item CRUD ─────────────────────────────────────────────────
@@ -376,54 +469,128 @@ export default class CsvUploadService {
   }
 
   /**
-   * Set a taxonomy field value on an item using
-   * ValidateUpdateListItem.
+   * Set a single-value taxonomy field on an item.
+   * Uses the SP.Taxonomy.TaxonomyFieldValue metadata object
+   * on the field's own internal name.
    */
   public setTaxonomyFieldValue(
     webUrl: string,
     listId: string,
     itemId: number,
     fieldInternalName: string,
-    wssId: number,
+    _hiddenFieldName: string,
     label: string,
     termGuid: string
   ): Promise<void> {
-    const taxValue: string =
-      wssId + ';#' + label + '|' + termGuid;
+    console.log(LOG, 'setTaxonomyFieldValue — itemId:', itemId,
+      'field:', fieldInternalName,
+      'label:', label, 'termGuid:', termGuid);
+    // tslint:disable-next-line:no-any
+    const payload: { [key: string]: any } = {};
+    payload[fieldInternalName] = {
+      __metadata: { type: 'SP.Taxonomy.TaxonomyFieldValue' },
+      Label: label,
+      TermGuid: termGuid,
+      WssId: -1
+    };
+    console.log(LOG, 'setTaxonomyFieldValue PAYLOAD:',
+      JSON.stringify(payload, undefined, 2));
     const web: Web = new Web(webUrl);
     return web.lists.getById(listId).items
       .getById(itemId)
-      .validateUpdateListItem([{
-        FieldName: fieldInternalName,
-        FieldValue: taxValue
-      }])
-      .then(() => { /* void */ });
+      .update(payload)
+      .then(() => {
+        console.log(LOG, 'setTaxonomyFieldValue REST call OK — itemId:', itemId,
+          'field:', fieldInternalName);
+        // Read back the field to verify the value was actually persisted
+        return web.lists.getById(listId).items
+          .getById(itemId)
+          .select(fieldInternalName)
+          .get();
+      })
+      .then((readBack: any) => {
+        console.log(LOG, 'setTaxonomyFieldValue READ-BACK — itemId:', itemId,
+          'field:', fieldInternalName,
+          'value:', JSON.stringify(readBack[fieldInternalName]));
+        // tslint:disable-next-line:no-any
+        const val: any = readBack[fieldInternalName];
+        if (!val || (!val.TermGuid && !val.Label)) {
+          console.error(LOG,
+            'setTaxonomyFieldValue VERIFICATION FAILED — field appears empty after update!',
+            'itemId:', itemId, 'field:', fieldInternalName,
+            'full readBack:', JSON.stringify(readBack));
+        }
+      })
+      .catch((err: any) => {
+        console.error(LOG, 'setTaxonomyFieldValue ERROR — itemId:', itemId,
+          'field:', fieldInternalName,
+          'label:', label, 'termGuid:', termGuid);
+        console.error(LOG, 'setTaxonomyFieldValue ERROR details:',
+          err && err.data ? JSON.stringify(err.data) : '',
+          err && err.status ? 'status=' + err.status : '',
+          err.message || err);
+        throw err;
+      });
   }
 
   /**
    * Set a multi-value taxonomy field on an item.
+   * Writes to the hidden note field associated with the
+   * taxonomy column.
    */
   public setTaxonomyMultiFieldValue(
     webUrl: string,
     listId: string,
     itemId: number,
     fieldInternalName: string,
+    hiddenFieldName: string,
     values: Array<{
       wssId: number; label: string; termGuid: string
     }>
   ): Promise<void> {
+    console.log(LOG, 'setTaxonomyMultiFieldValue — input values:',
+      JSON.stringify(values));
     const taxValue: string = values.map(
       (v: { wssId: number; label: string; termGuid: string }) =>
-        v.wssId + ';#' + v.label + '|' + v.termGuid
+        '-1;#' + v.label + '|' + v.termGuid
     ).join(';#');
+    console.log(LOG, 'setTaxonomyMultiFieldValue — itemId:', itemId,
+      'field:', fieldInternalName, 'hiddenField:', hiddenFieldName,
+      'taxValue:', taxValue);
+    // tslint:disable-next-line:no-any
+    const payload: { [key: string]: any } = {};
+    payload[hiddenFieldName] = taxValue;
+    console.log(LOG, 'setTaxonomyMultiFieldValue PAYLOAD:',
+      JSON.stringify(payload, undefined, 2));
     const web: Web = new Web(webUrl);
     return web.lists.getById(listId).items
       .getById(itemId)
-      .validateUpdateListItem([{
-        FieldName: fieldInternalName,
-        FieldValue: taxValue
-      }])
-      .then(() => { /* void */ });
+      .update(payload)
+      .then(() => {
+        console.log(LOG, 'setTaxonomyMultiFieldValue REST call OK — itemId:', itemId,
+          'field:', fieldInternalName);
+        // Read back the taxonomy field to verify the value was persisted
+        return web.lists.getById(listId).items
+          .getById(itemId)
+          .select(fieldInternalName)
+          .get();
+      })
+      .then((readBack: any) => {
+        console.log(LOG, 'setTaxonomyMultiFieldValue READ-BACK — itemId:', itemId,
+          'field:', fieldInternalName,
+          'value:', JSON.stringify(readBack[fieldInternalName]));
+      })
+      .catch((err: any) => {
+        console.error(LOG, 'setTaxonomyMultiFieldValue ERROR — itemId:', itemId,
+          'field:', fieldInternalName,
+          'hiddenField:', hiddenFieldName,
+          'taxValue:', taxValue);
+        console.error(LOG, 'setTaxonomyMultiFieldValue ERROR details:',
+          err && err.data ? JSON.stringify(err.data) : '',
+          err && err.status ? 'status=' + err.status : '',
+          err.message || err);
+        throw err;
+      });
   }
 
   // ─── Field Value Conversion ────────────────────────────────────
@@ -488,7 +655,11 @@ export default class CsvUploadService {
       case 'Choice': {
         if (!allowChoiceFillIn && field.choices &&
             field.choices.indexOf(csvValue) < 0) {
-          return Promise.resolve(undefined);
+          return Promise.reject(new Error(
+            strings.ErrorChoiceValueInvalid
+              .replace('{0}', csvValue)
+              .replace('{1}', field.displayName || field.internalName)
+          ));
         }
         return Promise.resolve({
           fieldName: field.internalName, value: csvValue
@@ -499,13 +670,16 @@ export default class CsvUploadService {
         const choices: string[] =
           csvValue.split(';').map((s: string) => s.trim());
         if (!allowChoiceFillIn && field.choices) {
-          const validChoices: string[] = choices.filter(
-            (c: string) => field.choices.indexOf(c) >= 0
+          const invalidChoices: string[] = choices.filter(
+            (c: string) => field.choices.indexOf(c) < 0
           );
-          return Promise.resolve({
-            fieldName: field.internalName,
-            value: { results: validChoices }
-          });
+          if (invalidChoices.length > 0) {
+            return Promise.reject(new Error(
+              strings.ErrorMultiChoiceValuesInvalid
+                .replace('{0}', invalidChoices.join(', '))
+                .replace('{1}', field.displayName || field.internalName)
+            ));
+          }
         }
         return Promise.resolve({
           fieldName: field.internalName,
@@ -527,7 +701,11 @@ export default class CsvUploadService {
               value: id
             };
           }
-          return undefined;
+          throw new Error(
+            strings.ErrorLookupValueNotFound
+              .replace('{0}', csvValue)
+              .replace('{1}', field.displayName || field.internalName)
+          );
         });
       }
 
@@ -537,18 +715,34 @@ export default class CsvUploadService {
         }
         const lookupVals: string[] =
           csvValue.split(';').map((s: string) => s.trim());
-        return this.resolveLookupValues(
-          webUrl, field.lookupListId,
-          field.lookupFieldName || 'Title', lookupVals
-        ).then((ids: number[]) => {
-          if (ids.length > 0) {
+        // Resolve each value individually to identify which ones fail
+        const lookupPromises: Promise<{ val: string; id: number | undefined }>[] =
+          lookupVals.map((v: string) =>
+            this.resolveLookupValue(
+              webUrl, field.lookupListId, field.lookupFieldName || 'Title', v
+            ).then((id: number | undefined) => ({ val: v, id: id }))
+          );
+        return Promise.all(lookupPromises).then(
+          (results: { val: string; id: number | undefined }[]) => {
+            const resolved: number[] = results
+              .filter((r: { val: string; id: number | undefined }) => r.id !== undefined)
+              .map((r: { val: string; id: number | undefined }) => r.id as number);
+            const unresolved: string[] = results
+              .filter((r: { val: string; id: number | undefined }) => r.id === undefined)
+              .map((r: { val: string; id: number | undefined }) => r.val);
+            if (unresolved.length > 0) {
+              throw new Error(
+                strings.ErrorLookupValuesNotFound
+                  .replace('{0}', unresolved.join(', '))
+                  .replace('{1}', field.displayName || field.internalName)
+              );
+            }
             return {
               fieldName: field.internalName + 'Id',
-              value: { results: ids }
+              value: { results: resolved }
             };
           }
-          return undefined;
-        });
+        );
       }
 
       case 'User': {
@@ -560,48 +754,82 @@ export default class CsvUploadService {
                 value: id
               };
             }
-            return undefined;
+            throw new Error(
+              strings.ErrorUserNotFound
+                .replace('{0}', csvValue)
+                .replace('{1}', field.displayName || field.internalName)
+            );
           });
       }
 
       case 'UserMulti': {
         const userNames: string[] =
           csvValue.split(';').map((s: string) => s.trim());
-        const userPromises: Promise<number | undefined>[] =
+        // Resolve each user individually to identify which ones fail
+        const userResolvePromises: Promise<{ name: string; id: number | undefined }>[] =
           userNames.map(
             (name: string) => this.resolveUser(webUrl, name)
+              .then((id: number | undefined) => ({ name: name, id: id }))
           );
-        return Promise.all(userPromises).then(
-          (ids: (number | undefined)[]) => {
-            const validIds: number[] = ids.filter(
-              (id: number | undefined) => id !== undefined
-            ) as number[];
-            if (validIds.length > 0) {
-              return {
-                fieldName: field.internalName + 'Id',
-                value: { results: validIds }
-              };
+        return Promise.all(userResolvePromises).then(
+          (results: { name: string; id: number | undefined }[]) => {
+            const resolvedIds: number[] = results
+              .filter((r: { name: string; id: number | undefined }) => r.id !== undefined)
+              .map((r: { name: string; id: number | undefined }) => r.id as number);
+            const unresolvedNames: string[] = results
+              .filter((r: { name: string; id: number | undefined }) => r.id === undefined)
+              .map((r: { name: string; id: number | undefined }) => r.name);
+            if (unresolvedNames.length > 0) {
+              throw new Error(
+                strings.ErrorUsersNotFound
+                  .replace('{0}', unresolvedNames.join(', '))
+                  .replace('{1}', field.displayName || field.internalName)
+              );
             }
-            return undefined;
+            return {
+              fieldName: field.internalName + 'Id',
+              value: { results: resolvedIds }
+            };
           }
         );
       }
 
       case 'URL': {
         const parts: string[] = csvValue.split(',');
-        const urlVal: string = parts[0].trim();
+        let urlVal: string = parts[0].trim();
         const desc: string = parts.length > 1
           ? parts.slice(1).join(',').trim()
-          : urlVal;
+          : '';
+
+        // Auto-prefix protocol if missing
+        if (urlVal && !/^[a-zA-Z][a-zA-Z0-9+\-.]*:\/\//i.test(urlVal)) {
+          urlVal = 'https://' + urlVal;
+        }
+
+        // If no explicit description was given, derive one from the URL
+        let displayDesc: string = desc;
+        if (!displayDesc) {
+          try {
+            // Extract hostname as a readable description
+            const match: RegExpMatchArray =
+              urlVal.match(/^(?:https?:\/\/)?([^\/\?#]+)/i);
+            displayDesc = match ? match[1] : urlVal;
+          } catch (e) {
+            displayDesc = urlVal;
+          }
+        }
+
         return Promise.resolve({
           fieldName: field.internalName,
-          value: { Url: urlVal, Description: desc }
+          value: { Url: urlVal, Description: displayDesc }
         });
       }
 
       case 'TaxonomyFieldType':
       case 'TaxonomyFieldTypeMulti':
         // Handled separately after item creation/update
+        console.log(LOG, 'convertFieldValue — skipping taxonomy field',
+          field.internalName, '(handled post-create)');
         return Promise.resolve(undefined);
 
       default:
@@ -663,6 +891,9 @@ export default class CsvUploadService {
                 field.taxonomyHiddenFieldName = noteName;
               }
             }
+            console.log(LOG, 'Taxonomy field enriched:',
+              field.internalName, '— termSetId:', field.termSetId,
+              'hiddenField:', field.taxonomyHiddenFieldName || '(none)');
           }
         });
         return fields;

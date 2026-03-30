@@ -89,6 +89,26 @@ declare interface IUploadCsvWebPartStrings {
   ErrorUpdatingItem: string;
   ErrorSettingTaxonomyField: string;
   ErrorSettingTaxonomyMultiField: string;
+  ErrorTaxonomyTermNotFound: string;
+  ErrorTaxonomyTermNotInTermSet: string;
+  ErrorChoiceValueInvalid: string;
+  ErrorMultiChoiceValuesInvalid: string;
+  ErrorLookupValueNotFound: string;
+  ErrorLookupValuesNotFound: string;
+  ErrorUserNotFound: string;
+  ErrorUsersNotFound: string;
+
+  // Field error dialog
+  FieldErrorDialogTitle: string;
+  FieldErrorDialogRowLabel: string;
+  FieldErrorDialogFieldLabel: string;
+  FieldErrorDialogValueLabel: string;
+  FieldErrorDialogErrorLabel: string;
+  FieldErrorDialogCorrectedValueLabel: string;
+  FieldErrorDialogCorrectedValuePlaceholder: string;
+  FieldErrorDialogUseValueButton: string;
+  FieldErrorDialogSkipFieldButton: string;
+  FieldErrorDialogSkipRowButton: string;
 }
 
 declare module 'UploadCsvWebPartStrings' {
