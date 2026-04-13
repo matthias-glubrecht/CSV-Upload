@@ -131,4 +131,5 @@ export interface IFieldErrorInfo {
 export type FieldErrorDecision =
   | { action: 'use-value'; newValue: string }
   | { action: 'skip-field' }
-  | { action: 'skip-row' };
+  | { action: 'skip-row' }
+  | { action: 'abort-import' };

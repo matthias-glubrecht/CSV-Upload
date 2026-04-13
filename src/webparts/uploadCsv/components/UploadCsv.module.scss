@@ -103,10 +103,10 @@
   }
 
   .mappingRowRequired {
-    background-color: #fff4ce;
+    background-color: $ms-color-themeLighter;
 
     &:hover {
-      background-color: #ffe8a1;
+      background-color: $ms-color-themeLight;
     }
   }
 
@@ -120,6 +120,7 @@
     @include ms-font-m;
     font-weight: 600;
     display: block;
+    color: $ms-color-neutralPrimary;
   }
 
   .fieldInternalName {
@@ -160,12 +161,23 @@
 
   .messageBar {
     margin-top: 12px;
+
+    // Fabric v5 MessageBar uses a hard-coded color (#333333) that
+    // does not adapt in inverted themes.  Override with a themed
+    // variable so the text stays readable on any background.
+    :global(.ms-MessageBar-text),
+    :global(.ms-MessageBar-text span) {
+      color: $ms-color-neutralPrimary;
+    }
+    :global(.ms-MessageBar-icon i) {
+      color: $ms-color-neutralPrimary;
+    }
   }
 
   .errorList {
     margin-top: 12px;
     padding: 12px;
-    background-color: #fde7e9;
+    background-color: $ms-color-neutralLighter;
     border-radius: 4px;
     max-height: 200px;
     overflow-y: auto;
@@ -200,45 +212,79 @@
     color: $ms-color-red;
     margin-top: 8px;
     padding: 8px 12px;
-    background-color: #fde7e9;
+    background-color: $ms-color-neutralLighter;
     border-radius: 4px;
   }
+}
 
-  // ─── Field Error Dialog ───────────────────────────────────────
-  .fieldErrorDialogContainer {
-    min-width: 480px !important;
-    max-width: 640px !important;
+// ─── Field Error Dialog ─────────────────────────────────────
+// These classes MUST be outside the .uploadCsv { } block because
+// Fabric's Dialog renders as a Layer/portal at <body> level,
+// NOT inside the web part DOM.  Nested selectors like
+// .uploadCsv_HASH .fieldErrorDialogContainer_HASH would never
+// match.  Top-level classes still get hashed by CSS modules and
+// work correctly via styles.fieldErrorDialogContainer etc.
+
+.fieldErrorDialogContainer {
+  min-width: 420px !important;
+  max-width: 640px !important;
+}
+
+.fieldErrorDialogContent {
+  padding: 4px 0;
+}
+
+.fieldErrorDialogInfoGrid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin-bottom: 16px;
+  align-items: baseline;
+  color: $ms-color-neutralPrimary;
+
+  label {
+    font-weight: 600;
+    margin: 0;
+    padding: 0;
   }
+}
 
-  .fieldErrorDialogContent {
-    padding: 4px 0;
-  }
+.fieldErrorDialogOriginalValue {
+  @include ms-font-m;
+  font-family: 'Consolas', 'Courier New', monospace;
+  background-color: $ms-color-neutralLighterAlt;
+  color: $ms-color-neutralPrimary;
+  padding: 2px 6px;
+  border-radius: 2px;
+  word-break: break-all;
+}
 
-  .fieldErrorDialogInfoGrid {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 4px 12px;
-    margin-bottom: 16px;
-    align-items: baseline;
+.fieldErrorDialogErrorText {
+  @include ms-font-m;
+  color: $ms-color-red;
+}
 
-    label {
-      font-weight: 600;
-      margin: 0;
-      padding: 0;
-    }
-  }
+.fieldErrorDialogActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
 
-  .fieldErrorDialogOriginalValue {
-    @include ms-font-m;
-    font-family: 'Consolas', 'Courier New', monospace;
-    background-color: $ms-color-neutralLighterAlt;
-    padding: 2px 6px;
-    border-radius: 2px;
-    word-break: break-all;
-  }
+.fieldErrorDialogActionButton {
+  flex: 1 1 0;
+  min-width: 0;
+}
 
-  .fieldErrorDialogErrorText {
-    @include ms-font-m;
-    color: $ms-color-red;
-  }
+.fieldErrorDialogAbortRow {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid $ms-color-neutralLight;
+  text-align: right;
+}
+
+.fieldErrorDialogAbortButton {
+  color: $ms-color-red;
+  // Match the width of each of the three action buttons above
+  // tslint:disable-next-line:max-line-length
+  width: calc((100% - 16px) / 3); // 16px = 2 × 8px gap
 }

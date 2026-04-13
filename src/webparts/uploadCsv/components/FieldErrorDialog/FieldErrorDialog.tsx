@@ -72,24 +72,42 @@ export default class FieldErrorDialog
             onChanged={this._onCorrectedValueChanged}
             placeholder={strings.FieldErrorDialogCorrectedValuePlaceholder}
           />
+
+          {/* Action buttons — three equal-width in a row */}
+          <div className={styles.fieldErrorDialogActions}>
+            <PrimaryButton
+              text={strings.FieldErrorDialogUseValueButton}
+              onClick={this._onUseValue}
+              iconProps={{ iconName: 'CheckMark' }}
+              className={styles.fieldErrorDialogActionButton}
+            />
+            <DefaultButton
+              text={strings.FieldErrorDialogSkipFieldButton}
+              onClick={this._onSkipField}
+              iconProps={{ iconName: 'Forward' }}
+              className={styles.fieldErrorDialogActionButton}
+            />
+            <DefaultButton
+              text={strings.FieldErrorDialogSkipRowButton}
+              onClick={this._onSkipRow}
+              iconProps={{ iconName: 'Cancel' }}
+              className={styles.fieldErrorDialogActionButton}
+            />
+          </div>
+
+          {/* Abort — visually separated */}
+          <div className={styles.fieldErrorDialogAbortRow}>
+            <DefaultButton
+              text={strings.FieldErrorDialogAbortImportButton}
+              onClick={this._onAbortImport}
+              iconProps={{ iconName: 'StopSolid' }}
+              className={styles.fieldErrorDialogAbortButton}
+            />
+          </div>
         </div>
 
         <DialogFooter>
-          <PrimaryButton
-            text={strings.FieldErrorDialogUseValueButton}
-            onClick={this._onUseValue}
-            iconProps={{ iconName: 'CheckMark' }}
-          />
-          <DefaultButton
-            text={strings.FieldErrorDialogSkipFieldButton}
-            onClick={this._onSkipField}
-            iconProps={{ iconName: 'Forward' }}
-          />
-          <DefaultButton
-            text={strings.FieldErrorDialogSkipRowButton}
-            onClick={this._onSkipRow}
-            iconProps={{ iconName: 'Cancel' }}
-          />
+          {/* Empty — buttons are rendered above for custom layout */}
         </DialogFooter>
       </Dialog>
     );
@@ -112,5 +130,9 @@ export default class FieldErrorDialog
 
   private _onSkipRow = (): void => {
     this.props.onDecision({ action: 'skip-row' });
+  }
+
+  private _onAbortImport = (): void => {
+    this.props.onDecision({ action: 'abort-import' });
   }
 }

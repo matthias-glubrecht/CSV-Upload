@@ -332,7 +332,6 @@ export default class CsvUploadService {
    * the term is not yet in TaxonomyHiddenList).
    */
   public resolveTermFromStore(
-    _webUrl: string,
     termSetId: string,
     label: string,
     sspId?: string
@@ -403,7 +402,7 @@ export default class CsvUploadService {
     keyValues: string[]
   ): Promise<{ [key: string]: number }> {
     const result: { [key: string]: number } = {};
-    const batchSize: number = 50;
+    const batchSize: number = 15;
     const batches: string[][] = [];
 
     for (let i: number = 0; i < keyValues.length; i += batchSize) {

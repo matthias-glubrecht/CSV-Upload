@@ -48,6 +48,16 @@ export default class MappingTable extends React.Component<IMappingTableProps, {}
       mapping.listField.fieldType === 'Choice' ||
       mapping.listField.fieldType === 'MultiChoice';
 
+    // SharePoint cannot use these field types in OData filter
+    // expressions, so they must not be used as key columns.
+    const canBeKeyColumn: boolean =
+      mapping.listField.fieldType !== 'TaxonomyFieldType' &&
+      mapping.listField.fieldType !== 'TaxonomyFieldTypeMulti' &&
+      mapping.listField.fieldType !== 'LookupMulti' &&
+      mapping.listField.fieldType !== 'UserMulti' &&
+      mapping.listField.fieldType !== 'MultiChoice' &&
+      mapping.listField.fieldType !== 'Note';
+
     const rowClass: string = mapping.listField.required && !mapping.csvColumn
       ? styles.mappingRowRequired
       : styles.mappingRow;
@@ -57,6 +67,7 @@ export default class MappingTable extends React.Component<IMappingTableProps, {}
         <td className={styles.mappingTableCell}>
           <Checkbox
             checked={mapping.isKeyColumn}
+            disabled={!canBeKeyColumn}
             onChange={
               (ev: React.FormEvent<HTMLElement>, checked: boolean) =>
                 this._onKeyColumnChanged(index, checked)

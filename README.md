@@ -1,6 +1,6 @@
 # CSV Upload – SharePoint Framework Web Part
 
-**Version 1.1.0**
+**Version 1.2.0**
 
 Ein SPFx-Web-Part zum Importieren von CSV-Dateien in SharePoint-Listen.
 
@@ -12,11 +12,12 @@ Ein SPFx-Web-Part zum Importieren von CSV-Dateien in SharePoint-Listen.
 - **CSV-Datei hochladen** — Drag & Drop oder Dateiauswahl-Dialog
 - **Automatische Zeichenkodierungs-Erkennung** — UTF-8 (mit/ohne BOM), UTF-16 LE und Windows-1252 (Excel-Standard) werden automatisch erkannt
 - **Automatisches Feld-Mapping** — Abgleich der CSV-Spaltenüberschriften mit Anzeige- und internem Feldnamen
-- **Schlüsselspalte** — Optional kann eine Spalte als Schlüssel markiert werden, um bestehende Einträge zu aktualisieren (Upsert)
+- **Schlüsselspalte** — Optional kann eine Spalte als Schlüssel markiert werden, um bestehende Einträge zu aktualisieren (Upsert). Feldtypen, die SharePoint nicht filtern kann (Taxonomie, Mehrfach-Nachschlagen, Mehrfach-Benutzer, Mehrfachauswahl, Mehrzeiliger Text), werden automatisch ausgeschlossen.
 - **Defaultwerte** — Für Pflichtfelder (die nicht Schlüssel sind) können Defaultwerte angegeben werden
 - **Fortschrittsanzeige** — Zeigt den Importfortschritt mit Zählern für erstellt/aktualisiert/Fehler
-- **Interaktiver Fehler-Dialog** — Bei nicht auflösbaren Werten (Benutzer, Nachschlagen, Auswahl, Taxonomie) wird ein Dialog angezeigt, in dem der Benutzer den Wert korrigieren, das Feld überspringen oder die gesamte Zeile überspringen kann
+- **Interaktiver Fehler-Dialog** — Bei nicht auflösbaren Werten (Benutzer, Nachschlagen, Auswahl, Taxonomie) wird ein Dialog angezeigt, in dem der Benutzer den Wert korrigieren, das Feld überspringen, die gesamte Zeile überspringen oder den Import abbrechen kann
 - **Benutzerfreundliche Fehlermeldungen** — SharePoint-REST-Fehler werden in verständliche Meldungen übersetzt
+- **Theme-Kompatibilität** — Alle Farben verwenden SharePoint-Theme-Variablen und funktionieren in allen Farbschemata, einschließlich invertierter/dunkler Themes
 
 ### Unterstützte Feldtypen
 
@@ -58,7 +59,7 @@ Der Web Part erkennt und verarbeitet automatisch das SharePoint-Exportformat fü
 src/webparts/uploadCsv/
 ├── UploadCsvWebPart.ts              # WebPart-Klasse (Einstiegspunkt)
 ├── components/
-│   ├── UploadCsv.tsx                # Hauptkomponente (Orchestrierung)
+│   ├── UploadCsv.tsx                # Hauptkomponente (UI-Orchestrierung, ~370 Zeilen)
 │   ├── UploadCsv.module.scss        # Gemeinsame Styles (CSS Modules)
 │   ├── SiteCollectionPicker/        # Websitesammlungs-Auswahl (ComboBox)
 │   ├── WebPicker/                   # Website-Auswahl (Dropdown)
@@ -68,11 +69,15 @@ src/webparts/uploadCsv/
 │   ├── ImportProgress/              # Fortschrittsanzeige
 │   └── FieldErrorDialog/            # Interaktiver Fehler-Dialog für Feldwerte
 ├── service/
-│   └── CsvUploadService.ts          # Datenzugriff via @pnp/sp + @pnp/sp-taxonomy
+│   ├── CsvUploadService.ts          # Datenzugriff via @pnp/sp + @pnp/sp-taxonomy
+│   ├── ImportEngine.ts              # Import-Orchestrierung (Zeilen, Felder, Upsert)
+│   └── TaxonomyProcessor.ts         # Taxonomie-Auflösung (HiddenList → Term Store)
 ├── models/
 │   └── IModels.ts                   # TypeScript-Interfaces
 ├── utils/
-│   └── CsvParser.ts                 # CSV-Parser mit Delimiter- und Encoding-Erkennung
+│   ├── CsvParser.ts                 # CSV-Parser mit Delimiter- und Encoding-Erkennung
+│   ├── ImportHelpers.ts             # Reine Hilfsfunktionen (Taxonomy-Parsing, Defaults, Fehler)
+│   └── MappingHelpers.ts            # Auto-Mapping CSV-Spalten ↔ SP-Felder
 └── loc/
     ├── mystrings.d.ts               # String-Typdefinitionen
     ├── en-us.js                     # Englische Übersetzungen

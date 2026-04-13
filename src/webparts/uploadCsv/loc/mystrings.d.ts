@@ -109,6 +109,7 @@ declare interface IUploadCsvWebPartStrings {
   FieldErrorDialogUseValueButton: string;
   FieldErrorDialogSkipFieldButton: string;
   FieldErrorDialogSkipRowButton: string;
+  FieldErrorDialogAbortImportButton: string;
 }
 
 declare module 'UploadCsvWebPartStrings' {

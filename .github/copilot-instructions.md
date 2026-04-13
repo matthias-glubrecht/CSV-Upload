@@ -60,7 +60,32 @@ The goal is **zero warnings** in the build output. Apply this decision process:
 4. After making changes, always run `gulp bundle` and verify the warning count has not increased.
 
 ## Architecture
-Components are created in separate folders under the components folder.
+
+The project follows a layered architecture, separating UI from business logic:
+
+```
+UploadCsv.tsx (UI orchestration, ~370 lines)
+  └─ ImportEngine (import orchestration)
+       └─ TaxonomyProcessor (taxonomy field resolution)
+       └─ CsvUploadService (SharePoint data access)
+  └─ MappingHelpers (auto-mapping CSV ↔ SP fields)
+  └─ ImportHelpers (pure helper functions)
+```
+
+### Service Layer (`service/`)
+- **CsvUploadService** — All SharePoint REST / PnP data access (site collections, webs, lists, fields, CRUD, taxonomy, user/lookup resolution).
+- **ImportEngine** — Orchestrates the full CSV import: row-by-row processing, field conversion with retry, upsert logic via key column. Decoupled from React via `IImportCallbacks` interface.
+- **TaxonomyProcessor** — Handles taxonomy field resolution with a two-tier strategy (TaxonomyHiddenList → term store fallback). Called by ImportEngine after item create/update.
+
+### Utils Layer (`utils/`)
+- **CsvParser** — RFC-4180 CSV parser with auto-detection of delimiter (`;` vs `,` vs `\t`) and encoding (UTF-8, UTF-16 LE, Windows-1252).
+- **ImportHelpers** — Pure functions: `parseTaxonomyExportValue`, `resolveDefaultValue`, `extractErrorMessage`, `resetProgress`.
+- **MappingHelpers** — Pure functions: `createInitialMappings` (auto-match CSV headers to SP fields), `allRequiredFieldsMapped`.
+
+### Components (`components/`)
+Components are created in separate folders under the components folder. Each sub-component (SiteCollectionPicker, WebPicker, ListPicker, CsvDropZone, MappingTable, ImportProgress, FieldErrorDialog) has its own folder with a single `.tsx` file.
+
+The main `UploadCsv.tsx` is UI-only: it holds state, renders sub-components, and delegates import execution to `ImportEngine` via callbacks.
 
 ## Coding Conventions
 
@@ -90,15 +115,42 @@ Components are created in separate folders under the components folder.
   @import "~@microsoft/sp-office-ui-fabric-core/dist/sass/SPFabricCore.scss";
   ```
 
-### Dialog & Modal Sizing
+### Theme Colour Rules
 
-When using Fluent UI / Office UI Fabric React `Dialog` components, **never set the width directly on the `<Dialog>` element**. Instead, control sizing through CSS classes applied via the component's props objects:
+**Never use hard-coded hex colours for backgrounds or text.** Always use SPFx Fabric Core SCSS variables (`$ms-color-themePrimary`, `$ms-color-neutralPrimary`, etc.). These are replaced by the SharePoint theme engine at runtime and adapt correctly in all colour schemes, including inverted / dark themes.
 
-- Use `modalProps.containerClassName` to target the outer modal container. This is the primary mechanism for controlling the overall dialog width. Set `min-width` and `max-width` with `!important` to override the Fabric defaults.
-- Use `dialogContentProps.className` to style the inner dialog content area (e.g. minimum width constraints).
-- Use a separate CSS class on the inner `<div>` for content-specific layout (padding, label widths, etc.).
+If a hard-coded background is unavoidable, you **must** also hard-code the text colour on the same element — but prefer theme variables.
 
-This three-layer approach (modal container → dialog content → inner div) keeps sizing rules centralized in SCSS and avoids inline styles or ad-hoc width props.
+### Dialog & Modal Styling
+
+Fabric's `Dialog` component renders as a **Layer/portal at `<body>` level**, outside the web part DOM. This means:
+
+- SCSS classes for dialogs **must NOT be nested** inside the `.uploadCsv { }` block. Descendant selectors like `.uploadCsv_HASH .dialogClass_HASH` will never match because the dialog DOM is not inside the web part container.
+- Place dialog-related SCSS classes at **top level** in the `.module.scss` file (outside `.uploadCsv { }`). CSS Modules still hashes them and `styles.className` works correctly.
+- Use `modalProps.containerClassName` to target the outer modal container for sizing (`min-width`, `max-width` with `!important`).
+
+### Fabric v5 MessageBar in Inverted Themes
+
+Fabric v5's `MessageBar` uses hard-coded `color: #333333` internally, which does not adapt in dark themes. When the theme inverts the background, the text becomes illegible. Override with:
+
+```scss
+.messageBar {
+  :global(.ms-MessageBar-text),
+  :global(.ms-MessageBar-text span) {
+    color: $ms-color-neutralPrimary;
+  }
+}
+```
+
+This works because the MessageBar renders **inside** the web part DOM (not a portal), so nested selectors match.
+
+### Key Column Restrictions
+
+SharePoint cannot use these field types in OData filter expressions. They must not be offered as key columns in the MappingTable:
+- `TaxonomyFieldType`, `TaxonomyFieldTypeMulti`
+- `LookupMulti`, `UserMulti`
+- `MultiChoice`
+- `Note`
 
 ### Localization
 
@@ -120,13 +172,17 @@ The UI strings are in **German** (e.g., "Tippen zum Suchen…", "Filtern nach ei
 
 3. **Taxonomy GUID format from `@pnp/sp-taxonomy`**: The term store API returns GUIDs wrapped as `/Guid(xxxx-xxxx)/`. The code normalises these by stripping the wrapper via regex before passing to SharePoint REST.
 
-4. **SharePoint export format for taxonomy fields**: SharePoint's "Export to Excel" writes taxonomy values as `<wssId>;#<label>` (single) or `<wssId>;#<label>;#<wssId>;#<label>` (multi). The parser (`_parseTaxonomyExportValue`) detects and strips these numeric prefixes. SharePoint may also insert an extra `#` before labels (e.g., `22;##IT-Verfahren`) which is stripped.
+4. **SharePoint export format for taxonomy fields**: SharePoint's "Export to Excel" writes taxonomy values as `<wssId>;#<label>` (single) or `<wssId>;#<label>;#<wssId>;#<label>` (multi). The parser (`parseTaxonomyExportValue` in `utils/ImportHelpers.ts`) detects and strips these numeric prefixes. SharePoint may also insert an extra `#` before labels (e.g., `22;##IT-Verfahren`) which is stripped.
 
 5. **CSV encoding detection**: The `decodeCsvBytes` function in `CsvParser.ts` performs byte-level UTF-8 validation (not relying on `TextDecoder({ fatal: true })` which some browsers ignore). It falls back to a manual Windows-1252 decoder to avoid depending on browser `TextDecoder` support for that encoding.
 
-6. **Field error handling during import**: When a field value cannot be resolved (user, lookup, choice, taxonomy), a `FieldErrorDialog` is shown that pauses the import chain via a stored Promise resolve callback. The user can correct the value, skip the field, or skip the entire row.
+6. **Field error handling during import**: When a field value cannot be resolved (user, lookup, choice, taxonomy), a `FieldErrorDialog` is shown that pauses the import chain via a stored Promise resolve callback. The user can correct the value, skip the field, skip the entire row, or abort the import entirely.
 
 7. **URL field auto-prefix**: URLs without a protocol scheme get `https://` prepended. The description is derived from the hostname if not explicitly provided.
+
+8. **Dialog portal breaks CSS scoping**: Fabric's Dialog renders at `<body>` level, outside the web part DOM. Dialog-related SCSS classes must be defined outside the `.uploadCsv { }` wrapper block. See "Dialog & Modal Styling" above.
+
+9. **Abort import signal propagation**: The `__ABORT_IMPORT__` sentinel error must be re-thrown in `_processRow`'s catch handler, not swallowed as a regular row error. Otherwise the import continues to the next row.
 
 ### Versioning
 We keep the version number in package-solution.json (a.b.c.0) and package.json (a.b.c) in sync

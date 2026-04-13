@@ -108,6 +108,7 @@ define([], function() {
     "FieldErrorDialogCorrectedValuePlaceholder": "Neuen Wert eingeben oder leer lassen, um das Feld zu überspringen...",
     "FieldErrorDialogUseValueButton": "Korrigierten Wert verwenden",
     "FieldErrorDialogSkipFieldButton": "Feld überspringen",
-    "FieldErrorDialogSkipRowButton": "Ganze Zeile überspringen"
+    "FieldErrorDialogSkipRowButton": "Ganze Zeile überspringen",
+    "FieldErrorDialogAbortImportButton": "Import abbrechen"
   }
 });

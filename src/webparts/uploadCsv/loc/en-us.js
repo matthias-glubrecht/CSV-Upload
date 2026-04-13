@@ -108,6 +108,7 @@ define([], function() {
     "FieldErrorDialogCorrectedValuePlaceholder": "Enter a new value or leave empty to skip this field...",
     "FieldErrorDialogUseValueButton": "Use corrected value",
     "FieldErrorDialogSkipFieldButton": "Skip field",
-    "FieldErrorDialogSkipRowButton": "Skip entire row"
+    "FieldErrorDialogSkipRowButton": "Skip entire row",
+    "FieldErrorDialogAbortImportButton": "Abort import"
   }
 });
