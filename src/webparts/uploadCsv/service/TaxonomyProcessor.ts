@@ -1,9 +1,8 @@
 import CsvUploadService from './CsvUploadService';
 import { IFieldMapping, IFieldErrorInfo, FieldErrorDecision } from '../models';
-import { parseTaxonomyExportValue, resolveDefaultValue } from '../utils/ImportHelpers';
+import { parseTaxonomyExportValue, resolveDefaultValue, formatString } from '../utils/ImportHelpers';
+import { LOG } from '../utils/log';
 import * as strings from 'UploadCsvWebPartStrings';
-
-const LOG: string = '[CsvUpload]';
 
 /** Result returned by taxonomy resolution methods */
 interface ITaxonomyResult {
@@ -66,16 +65,7 @@ export default class TaxonomyProcessor {
         );
       }
 
-      console.log(LOG, 'processTaxonomyFields \u2014 idx:', idx,
-        'field:', mapping.listField.internalName,
-        'type:', mapping.listField.fieldType,
-        'csvColumn:', mapping.csvColumn,
-        'colIndex:', colIndex,
-        'csvValue:', JSON.stringify(csvValue),
-        'termSetId:', mapping.listField.termSetId);
-
       if (!csvValue) {
-        console.log(LOG, 'processTaxonomyFields \u2014 skipping (empty value)');
         return processMapping(idx + 1);
       }
 
@@ -124,9 +114,6 @@ export default class TaxonomyProcessor {
         const unresolvedLabels: string[] = labels.filter(
           (_lbl: string, i: number) => results[i] === undefined
         );
-        console.log(LOG, 'processTaxonomyFields multi \u2014 labels:', labels,
-          'resolved:', validResults.length, 'of', labels.length, validResults,
-          'unresolved:', unresolvedLabels);
 
         // Resolve unresolved labels from the term store
         const storePromises: Promise<ITaxonomyResult | undefined>[] =
@@ -145,13 +132,9 @@ export default class TaxonomyProcessor {
             if (stillUnresolved.length > 0) {
               const fieldLabel: string = mapping.listField.displayName
                 || mapping.listField.internalName;
-              console.warn(LOG,
-                'processTaxonomyFields multi \u2014 terms not found:',
-                stillUnresolved, 'for field:', fieldLabel);
               throw new Error(
-                strings.ErrorTaxonomyTermNotFound
-                  .replace('{0}', stillUnresolved.join(', '))
-                  .replace('{1}', fieldLabel)
+                formatString(strings.ErrorTaxonomyTermNotFound,
+                  stillUnresolved.join(', '), fieldLabel)
               );
             }
             const allValues: ITaxonomyResult[] = validResults.concat(storeResolved);
@@ -201,9 +184,6 @@ export default class TaxonomyProcessor {
 
     return service.resolveTaxonomyValue(webUrl, termSetId, label)
       .then((result: ITaxonomyResult | undefined) => {
-        console.log(LOG, 'processTaxonomyFields single \u2014 csvValue:',
-          JSON.stringify(label),
-          'resolved:', result ? JSON.stringify(result) : '(not found, will search term store)');
         if (result) {
           return service.setTaxonomyFieldValue(
             webUrl, listId, itemId,
@@ -216,28 +196,16 @@ export default class TaxonomyProcessor {
           termSetId, label, mapping.listField.sspId
         ).then((storeResult: ITaxonomyResult | undefined) => {
           if (storeResult) {
-            console.log(LOG, 'processTaxonomyFields single \u2014 resolved from STORE:',
-              JSON.stringify(storeResult),
-              'will call setTaxonomyFieldValue with:',
-              'itemId:', itemId,
-              'field:', mapping.listField.internalName,
-              'hiddenField:', taxHiddenField,
-              'label:', storeResult.label,
-              'termGuid:', storeResult.termGuid);
             return service.setTaxonomyFieldValue(
               webUrl, listId, itemId,
               mapping.listField.internalName, taxHiddenField,
               storeResult.label, storeResult.termGuid
             );
           }
-          console.warn(LOG, 'processTaxonomyFields \u2014 term not found anywhere:',
-            JSON.stringify(label),
-            'termSetId:', termSetId,
-            'sspId:', mapping.listField.sspId);
           throw new Error(
-            strings.ErrorTaxonomyTermNotFound
-              .replace('{0}', label)
-              .replace('{1}', mapping.listField.displayName || mapping.listField.internalName)
+            formatString(strings.ErrorTaxonomyTermNotFound,
+              label,
+              mapping.listField.displayName || mapping.listField.internalName)
           );
         });
       })
@@ -269,9 +237,8 @@ export default class TaxonomyProcessor {
     if (msg.indexOf('SPFieldValueException') >= 0
       || msg.indexOf('Terminologiespeicher') >= 0
       || msg.indexOf('term store') >= 0) {
-      friendlyMsg = strings.ErrorTaxonomyTermNotInTermSet
-        .replace('{0}', csvValue)
-        .replace('{1}', mapping.listField.displayName || mapping.listField.internalName);
+      friendlyMsg = formatString(strings.ErrorTaxonomyTermNotInTermSet,
+        csvValue, mapping.listField.displayName || mapping.listField.internalName);
     }
     const errorInfo: IFieldErrorInfo = {
       rowNumber: rowNum,

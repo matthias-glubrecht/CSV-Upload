@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Upload CSV is a **SharePoint Framework (SPFx) 1.4.1** web part that lets end users upload a CSV file and have it's contents
+Upload CSV is a **SharePoint Framework (SPFx) 1.4.1** web part that lets end users upload a CSV file and have its contents
 added as lines to a SharePoint list.
 
 ## Technology Stack
@@ -64,8 +64,9 @@ The goal is **zero warnings** in the build output. Apply this decision process:
 The project follows a layered architecture, separating UI from business logic:
 
 ```
-UploadCsv.tsx (UI orchestration, ~370 lines)
+UploadCsv.tsx (UI orchestration)
   └─ ImportEngine (import orchestration)
+       └─ FieldValueConverter (CSV string → SP REST payload)
        └─ TaxonomyProcessor (taxonomy field resolution)
        └─ CsvUploadService (SharePoint data access)
   └─ MappingHelpers (auto-mapping CSV ↔ SP fields)
@@ -75,12 +76,14 @@ UploadCsv.tsx (UI orchestration, ~370 lines)
 ### Service Layer (`service/`)
 - **CsvUploadService** — All SharePoint REST / PnP data access (site collections, webs, lists, fields, CRUD, taxonomy, user/lookup resolution).
 - **ImportEngine** — Orchestrates the full CSV import: row-by-row processing, field conversion with retry, upsert logic via key column. Decoupled from React via `IImportCallbacks` interface.
+- **FieldValueConverter** — Converts a raw CSV string into the payload shape expected by the SharePoint REST API for each supported field type. Delegates lookup/user resolution back to `CsvUploadService`.
 - **TaxonomyProcessor** — Handles taxonomy field resolution with a two-tier strategy (TaxonomyHiddenList → term store fallback). Called by ImportEngine after item create/update.
 
 ### Utils Layer (`utils/`)
 - **CsvParser** — RFC-4180 CSV parser with auto-detection of delimiter (`;` vs `,` vs `\t`) and encoding (UTF-8, UTF-16 LE, Windows-1252).
-- **ImportHelpers** — Pure functions: `parseTaxonomyExportValue`, `resolveDefaultValue`, `extractErrorMessage`, `resetProgress`.
-- **MappingHelpers** — Pure functions: `createInitialMappings` (auto-match CSV headers to SP fields), `allRequiredFieldsMapped`.
+- **ImportHelpers** — Pure functions: `parseTaxonomyExportValue`, `resolveDefaultValue`, `extractErrorMessage`, `resetProgress`, `formatString`.
+- **MappingHelpers** — Pure functions: `createInitialMappings` (auto-match CSV headers to SP fields), `allRequiredFieldsMapped`, `isKeyEligible` (single source of truth for key-column field-type filtering).
+- **log** — Single shared `LOG` prefix used by all modules that emit `console.warn` / `console.error`.
 
 ### Components (`components/`)
 Components are created in separate folders under the components folder. Each sub-component (SiteCollectionPicker, WebPicker, ListPicker, CsvDropZone, MappingTable, ImportProgress, FieldErrorDialog) has its own folder with a single `.tsx` file.
@@ -146,11 +149,13 @@ This works because the MessageBar renders **inside** the web part DOM (not a por
 
 ### Key Column Restrictions
 
-SharePoint cannot use these field types in OData filter expressions. They must not be offered as key columns in the MappingTable:
+SharePoint cannot use these field types in OData filter expressions, so they must not be offered as key columns in the MappingTable:
 - `TaxonomyFieldType`, `TaxonomyFieldTypeMulti`
 - `LookupMulti`, `UserMulti`
 - `MultiChoice`
 - `Note`
+
+The single source of truth is `isKeyEligible(fieldType)` in [utils/MappingHelpers.ts](../src/webparts/uploadCsv/utils/MappingHelpers.ts). Update the list there; the MappingTable already imports the helper.
 
 ### Localization
 

@@ -1,6 +1,4 @@
-import { IListField, IFieldMapping } from '../models';
-
-const LOG: string = '[CsvUpload]';
+import { IListField, IFieldMapping, SpFieldType } from '../models';
 
 /**
  * Auto-match CSV headers to SharePoint list fields by display name
@@ -38,9 +36,10 @@ export function createInitialMappings(
 
     // Pre-populate default value from list field definition
     let defaultVal: string = field.defaultValue || '';
-    // Translate SharePoint default value tokens to readable form
-    if (field.fieldType === 'DateTime' && defaultVal === '[today]') {
-      defaultVal = '[Heute]';
+    // Translate SharePoint's [today] / [today]+N / [today]-N tokens to the
+    // German display form. resolveDefaultValue accepts both forms at import time.
+    if (field.fieldType === 'DateTime' && defaultVal) {
+      defaultVal = defaultVal.replace(/^\[today\]/i, '[Heute]');
     }
 
     return {
@@ -51,14 +50,6 @@ export function createInitialMappings(
       defaultValue: defaultVal
     };
   });
-
-  console.log(LOG, 'createInitialMappings \u2014 CSV headers:', csvHeaders,
-    'mappings:', mappings.map((m: IFieldMapping) => ({
-      field: m.listField.internalName,
-      type: m.listField.fieldType,
-      csvColumn: m.csvColumn || '(unmapped)'
-    }))
-  );
 
   return mappings;
 }
@@ -74,4 +65,24 @@ export function allRequiredFieldsMapped(mappings: IFieldMapping[]): boolean {
       return m.csvColumn !== undefined ||
         (m.defaultValue !== undefined && m.defaultValue !== '');
     });
+}
+
+/**
+ * Field types that SharePoint cannot use in OData filter expressions
+ * and that therefore cannot serve as the upsert key column.
+ */
+const NON_KEY_FIELD_TYPES: SpFieldType[] = [
+  'TaxonomyFieldType',
+  'TaxonomyFieldTypeMulti',
+  'LookupMulti',
+  'UserMulti',
+  'MultiChoice',
+  'Note'
+];
+
+/**
+ * Whether a field type may be used as the upsert key column.
+ */
+export function isKeyEligible(fieldType: SpFieldType): boolean {
+  return NON_KEY_FIELD_TYPES.indexOf(fieldType) < 0;
 }

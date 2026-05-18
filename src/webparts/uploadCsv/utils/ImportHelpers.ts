@@ -1,7 +1,5 @@
 import { IImportProgress } from '../models';
 
-const LOG: string = '[CsvUpload]';
-
 /**
  * Parse a taxonomy value that may be in SharePoint export format.
  *
@@ -39,8 +37,6 @@ export function parseTaxonomyExportValue(csvValue: string): string[] {
         labels.push(seg);
       }
     }
-    console.log(LOG, 'parseTaxonomyExportValue \u2014 detected SP export format.',
-      'raw:', JSON.stringify(csvValue), 'labels:', labels);
     return labels;
   }
   // Plain format: split by semicolon
@@ -126,4 +122,17 @@ export function resetProgress(): IImportProgress {
     errorMessages: [],
     status: 'idle'
   };
+}
+
+/**
+ * Replace `{0}`, `{1}`, ... placeholders in a template with the
+ * supplied arguments. Used for localised strings that come from
+ * the loc/*.js files.
+ */
+// tslint:disable-next-line:no-any
+export function formatString(template: string, ...args: any[]): string {
+  return template.replace(/\{(\d+)\}/g, (match: string, index: string) => {
+    const i: number = parseInt(index, 10);
+    return i < args.length ? String(args[i]) : match;
+  });
 }

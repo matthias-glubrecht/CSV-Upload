@@ -34,9 +34,10 @@ export default class CsvDropZone extends React.Component<ICsvDropZoneProps, ICsv
         onDragLeave={this._onDragLeave}
         onDrop={this._onDrop}
         onClick={this._onClick}
+        onKeyDown={this._onKeyDown}
         role='button'
-        aria-expanded={false}
-        aria-controls='csvFileInput'
+        tabIndex={0}
+        aria-label={strings.DropZoneHint}
       >
         <input
           id='csvFileInput'
@@ -101,6 +102,14 @@ export default class CsvDropZone extends React.Component<ICsvDropZoneProps, ICsv
       // Reset value so re-selecting the same file triggers onChange
       this._fileInput.value = '';
       this._fileInput.click();
+    }
+  }
+
+  private _onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+    // Activate the drop zone with Enter or Space, just like a real button
+    if (event.key === 'Enter' || event.key === ' ' || event.keyCode === 13 || event.keyCode === 32) {
+      event.preventDefault();
+      this._onClick();
     }
   }
 

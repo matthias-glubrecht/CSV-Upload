@@ -1,6 +1,6 @@
 # CSV Upload – SharePoint Framework Web Part
 
-**Version 1.2.0**
+**Version 1.3.0**
 
 Ein SPFx-Web-Part zum Importieren von CSV-Dateien in SharePoint-Listen.
 
@@ -59,7 +59,7 @@ Der Web Part erkennt und verarbeitet automatisch das SharePoint-Exportformat fü
 src/webparts/uploadCsv/
 ├── UploadCsvWebPart.ts              # WebPart-Klasse (Einstiegspunkt)
 ├── components/
-│   ├── UploadCsv.tsx                # Hauptkomponente (UI-Orchestrierung, ~370 Zeilen)
+│   ├── UploadCsv.tsx                # Hauptkomponente (UI-Orchestrierung)
 │   ├── UploadCsv.module.scss        # Gemeinsame Styles (CSS Modules)
 │   ├── SiteCollectionPicker/        # Websitesammlungs-Auswahl (ComboBox)
 │   ├── WebPicker/                   # Website-Auswahl (Dropdown)
@@ -71,13 +71,15 @@ src/webparts/uploadCsv/
 ├── service/
 │   ├── CsvUploadService.ts          # Datenzugriff via @pnp/sp + @pnp/sp-taxonomy
 │   ├── ImportEngine.ts              # Import-Orchestrierung (Zeilen, Felder, Upsert)
+│   ├── FieldValueConverter.ts       # CSV-String → SharePoint-REST-Payload pro Feldtyp
 │   └── TaxonomyProcessor.ts         # Taxonomie-Auflösung (HiddenList → Term Store)
 ├── models/
 │   └── IModels.ts                   # TypeScript-Interfaces
 ├── utils/
 │   ├── CsvParser.ts                 # CSV-Parser mit Delimiter- und Encoding-Erkennung
-│   ├── ImportHelpers.ts             # Reine Hilfsfunktionen (Taxonomy-Parsing, Defaults, Fehler)
-│   └── MappingHelpers.ts            # Auto-Mapping CSV-Spalten ↔ SP-Felder
+│   ├── ImportHelpers.ts             # Reine Hilfsfunktionen (Taxonomy-Parsing, Defaults, Fehler, formatString)
+│   ├── MappingHelpers.ts            # Auto-Mapping CSV-Spalten ↔ SP-Felder, isKeyEligible
+│   └── log.ts                       # Gemeinsamer Log-Präfix für Diagnose-Ausgaben
 └── loc/
     ├── mystrings.d.ts               # String-Typdefinitionen
     ├── en-us.js                     # Englische Übersetzungen

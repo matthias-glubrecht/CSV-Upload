@@ -58,8 +58,6 @@ export interface IListField {
   lookupListId?: string;
   /** For lookup fields: lookup field name */
   lookupFieldName?: string;
-  /** For lookup fields: lookup web id */
-  lookupWebId?: string;
   /** For taxonomy fields: term set id */
   termSetId?: string;
   /** For taxonomy fields: term store id (SspId) */

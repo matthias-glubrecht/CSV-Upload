@@ -3,7 +3,7 @@
   "solution": {
     "name": "csv-upload-client-side-solution",
     "id": "157bbb41-f54e-4190-b6f2-531f507cff58",
-    "version": "1.2.0.0",
+    "version": "1.3.0.0",
     "includeClientSideAssets": true,
     "skipFeatureDeployment": true
   },

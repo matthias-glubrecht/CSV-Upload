@@ -2,7 +2,6 @@
 import { WebPartContext } from '@microsoft/sp-webpart-base';
 import { sp, Web, SearchResults } from '@pnp/sp';
 import { taxonomy, ITermStore } from '@pnp/sp-taxonomy';
-import * as strings from 'UploadCsvWebPartStrings';
 import {
   ISiteCollection,
   IWeb,
@@ -10,8 +9,7 @@ import {
   IListField,
   SpFieldType
 } from '../models';
-
-const LOG: string = '[CsvUpload]';
+import { LOG } from '../utils/log';
 
 /**
  * Service class encapsulating all SharePoint data access
@@ -147,7 +145,7 @@ export default class CsvUploadService {
       .filter('Hidden eq false and ReadOnlyField eq false')
       .select(
         'InternalName', 'Title', 'TypeAsString', 'Required',
-        'Choices', 'LookupList', 'LookupField', 'LookupWebId',
+        'Choices', 'LookupList', 'LookupField',
         'TermSetId', 'SspId', 'DefaultValue'
       )
       .get()
@@ -182,24 +180,12 @@ export default class CsvUploadService {
               : undefined,
             lookupListId: f.LookupList || undefined,
             lookupFieldName: f.LookupField || undefined,
-            lookupWebId: f.LookupWebId || undefined,
             termSetId: f.TermSetId || undefined,
             sspId: f.SspId || undefined,
             defaultValue: f.DefaultValue || undefined
           });
         });
-        return this._enrichTaxonomyFields(
-          webUrl, listId, fields
-        ).then((enriched: IListField[]) => {
-          console.log(LOG, 'Fields loaded:', enriched.length,
-            enriched.map((f: IListField) => ({
-              name: f.internalName, type: f.fieldType,
-              termSetId: f.termSetId, sspId: f.sspId,
-              taxHidden: f.taxonomyHiddenFieldName
-            }))
-          );
-          return enriched;
-        });
+        return this._enrichTaxonomyFields(webUrl, listId, fields);
       });
   }
 
@@ -296,7 +282,6 @@ export default class CsvUploadService {
   ): Promise<{
     wssId: number; label: string; termGuid: string
   } | undefined> {
-    console.log(LOG, 'resolveTaxonomyValue called — termSetId:', termSetId, 'label:', JSON.stringify(label));
     const web: Web = new Web(webUrl);
     return web.lists.getByTitle('TaxonomyHiddenList').items
       .filter(
@@ -306,9 +291,6 @@ export default class CsvUploadService {
       .top(1)
       .get()
       .then((items: any[]) => {
-        console.log(LOG, 'resolveTaxonomyValue result for',
-          JSON.stringify(label), '— items returned:',
-          items.length, items);
         if (items.length > 0) {
           return {
             wssId: items[0].Id,
@@ -338,21 +320,11 @@ export default class CsvUploadService {
   ): Promise<{
     wssId: number; label: string; termGuid: string
   } | undefined> {
-    console.log(LOG, 'resolveTermFromStore called — termSetId:',
-      termSetId, 'sspId:', sspId, 'label:', JSON.stringify(label));
     const store: ITermStore = sspId
       ? taxonomy.termStores.getById(sspId)
       : taxonomy.getDefaultSiteCollectionTermStore();
     return store.getTermSetById(termSetId).terms.get()
       .then((terms: any[]) => {
-        console.log(LOG, 'resolveTermFromStore — terms in set:',
-          terms.length,
-          terms.map((t: any) => ({ Name: t.Name, Id: t.Id })));
-        // Log raw first term object so we can see the exact GUID format
-        if (terms.length > 0) {
-          console.log(LOG, 'resolveTermFromStore — RAW first term object:',
-            JSON.stringify(terms[0]));
-        }
         let match: any = undefined;
         for (let i: number = 0; i < terms.length; i++) {
           if (terms[i].Name === label) {
@@ -361,26 +333,17 @@ export default class CsvUploadService {
           }
         }
         if (match) {
-          // tslint:disable-next-line:no-any
           const rawGuid: string = match.Id || '';
           // Normalise GUID: strip /Guid(...)/ wrapper and curly braces
           const cleanGuid: string = rawGuid
             .replace(/^\/Guid\((.*)\)\/$/i, '$1')
             .replace(/^\{|\}$/g, '');
-          console.log(LOG, 'resolveTermFromStore found:',
-            match.Name,
-            'rawGuid:', JSON.stringify(rawGuid),
-            'cleanGuid:', JSON.stringify(cleanGuid));
           return {
             wssId: -1,
             label: match.Name || label,
             termGuid: cleanGuid
           };
         }
-        console.warn(LOG, 'resolveTermFromStore — term not found for label:',
-          JSON.stringify(label),
-          '— available names:',
-          terms.map((t: any) => t.Name));
         return undefined;
       })
       .catch((err: Error) => {
@@ -481,9 +444,6 @@ export default class CsvUploadService {
     label: string,
     termGuid: string
   ): Promise<void> {
-    console.log(LOG, 'setTaxonomyFieldValue — itemId:', itemId,
-      'field:', fieldInternalName,
-      'label:', label, 'termGuid:', termGuid);
     // tslint:disable-next-line:no-any
     const payload: { [key: string]: any } = {};
     payload[fieldInternalName] = {
@@ -492,39 +452,15 @@ export default class CsvUploadService {
       TermGuid: termGuid,
       WssId: -1
     };
-    console.log(LOG, 'setTaxonomyFieldValue PAYLOAD:',
-      JSON.stringify(payload, undefined, 2));
     const web: Web = new Web(webUrl);
     return web.lists.getById(listId).items
       .getById(itemId)
       .update(payload)
-      .then(() => {
-        console.log(LOG, 'setTaxonomyFieldValue REST call OK — itemId:', itemId,
-          'field:', fieldInternalName);
-        // Read back the field to verify the value was actually persisted
-        return web.lists.getById(listId).items
-          .getById(itemId)
-          .select(fieldInternalName)
-          .get();
-      })
-      .then((readBack: any) => {
-        console.log(LOG, 'setTaxonomyFieldValue READ-BACK — itemId:', itemId,
-          'field:', fieldInternalName,
-          'value:', JSON.stringify(readBack[fieldInternalName]));
-        // tslint:disable-next-line:no-any
-        const val: any = readBack[fieldInternalName];
-        if (!val || (!val.TermGuid && !val.Label)) {
-          console.error(LOG,
-            'setTaxonomyFieldValue VERIFICATION FAILED — field appears empty after update!',
-            'itemId:', itemId, 'field:', fieldInternalName,
-            'full readBack:', JSON.stringify(readBack));
-        }
-      })
+      .then(() => { /* void */ })
       .catch((err: any) => {
         console.error(LOG, 'setTaxonomyFieldValue ERROR — itemId:', itemId,
           'field:', fieldInternalName,
-          'label:', label, 'termGuid:', termGuid);
-        console.error(LOG, 'setTaxonomyFieldValue ERROR details:',
+          'label:', label, 'termGuid:', termGuid,
           err && err.data ? JSON.stringify(err.data) : '',
           err && err.status ? 'status=' + err.status : '',
           err.message || err);
@@ -547,293 +483,28 @@ export default class CsvUploadService {
       wssId: number; label: string; termGuid: string
     }>
   ): Promise<void> {
-    console.log(LOG, 'setTaxonomyMultiFieldValue — input values:',
-      JSON.stringify(values));
     const taxValue: string = values.map(
       (v: { wssId: number; label: string; termGuid: string }) =>
         '-1;#' + v.label + '|' + v.termGuid
     ).join(';#');
-    console.log(LOG, 'setTaxonomyMultiFieldValue — itemId:', itemId,
-      'field:', fieldInternalName, 'hiddenField:', hiddenFieldName,
-      'taxValue:', taxValue);
     // tslint:disable-next-line:no-any
     const payload: { [key: string]: any } = {};
     payload[hiddenFieldName] = taxValue;
-    console.log(LOG, 'setTaxonomyMultiFieldValue PAYLOAD:',
-      JSON.stringify(payload, undefined, 2));
     const web: Web = new Web(webUrl);
     return web.lists.getById(listId).items
       .getById(itemId)
       .update(payload)
-      .then(() => {
-        console.log(LOG, 'setTaxonomyMultiFieldValue REST call OK — itemId:', itemId,
-          'field:', fieldInternalName);
-        // Read back the taxonomy field to verify the value was persisted
-        return web.lists.getById(listId).items
-          .getById(itemId)
-          .select(fieldInternalName)
-          .get();
-      })
-      .then((readBack: any) => {
-        console.log(LOG, 'setTaxonomyMultiFieldValue READ-BACK — itemId:', itemId,
-          'field:', fieldInternalName,
-          'value:', JSON.stringify(readBack[fieldInternalName]));
-      })
+      .then(() => { /* void */ })
       .catch((err: any) => {
         console.error(LOG, 'setTaxonomyMultiFieldValue ERROR — itemId:', itemId,
           'field:', fieldInternalName,
           'hiddenField:', hiddenFieldName,
-          'taxValue:', taxValue);
-        console.error(LOG, 'setTaxonomyMultiFieldValue ERROR details:',
+          'taxValue:', taxValue,
           err && err.data ? JSON.stringify(err.data) : '',
           err && err.status ? 'status=' + err.status : '',
           err.message || err);
         throw err;
       });
-  }
-
-  // ─── Field Value Conversion ────────────────────────────────────
-
-  /**
-   * Convert a CSV string value to the appropriate field value
-   * for the SharePoint REST API.
-   */
-  public convertFieldValue(
-    webUrl: string,
-    field: IListField,
-    csvValue: string,
-    allowChoiceFillIn: boolean
-  ): Promise<{ fieldName: string; value: any } | undefined> {
-
-    if (csvValue === undefined || csvValue === '') {
-      return Promise.resolve(undefined);
-    }
-
-    switch (field.fieldType) {
-      case 'Text':
-        return Promise.resolve({
-          fieldName: field.internalName, value: csvValue
-        });
-
-      case 'Note':
-        return Promise.resolve({
-          fieldName: field.internalName, value: csvValue
-        });
-
-      case 'Number':
-      case 'Currency': {
-        const numVal: number =
-          parseFloat(csvValue.replace(',', '.'));
-        if (isNaN(numVal)) {
-          return Promise.resolve(undefined);
-        }
-        return Promise.resolve({
-          fieldName: field.internalName, value: numVal
-        });
-      }
-
-      case 'Boolean': {
-        const boolVal: boolean =
-          this._parseBooleanValue(csvValue);
-        return Promise.resolve({
-          fieldName: field.internalName, value: boolVal
-        });
-      }
-
-      case 'DateTime': {
-        const dateVal: string | undefined =
-          this._parseDateValue(csvValue);
-        if (!dateVal) {
-          return Promise.resolve(undefined);
-        }
-        return Promise.resolve({
-          fieldName: field.internalName, value: dateVal
-        });
-      }
-
-      case 'Choice': {
-        if (!allowChoiceFillIn && field.choices &&
-            field.choices.indexOf(csvValue) < 0) {
-          return Promise.reject(new Error(
-            strings.ErrorChoiceValueInvalid
-              .replace('{0}', csvValue)
-              .replace('{1}', field.displayName || field.internalName)
-          ));
-        }
-        return Promise.resolve({
-          fieldName: field.internalName, value: csvValue
-        });
-      }
-
-      case 'MultiChoice': {
-        const choices: string[] =
-          csvValue.split(';').map((s: string) => s.trim());
-        if (!allowChoiceFillIn && field.choices) {
-          const invalidChoices: string[] = choices.filter(
-            (c: string) => field.choices.indexOf(c) < 0
-          );
-          if (invalidChoices.length > 0) {
-            return Promise.reject(new Error(
-              strings.ErrorMultiChoiceValuesInvalid
-                .replace('{0}', invalidChoices.join(', '))
-                .replace('{1}', field.displayName || field.internalName)
-            ));
-          }
-        }
-        return Promise.resolve({
-          fieldName: field.internalName,
-          value: { results: choices }
-        });
-      }
-
-      case 'Lookup': {
-        if (!field.lookupListId) {
-          return Promise.resolve(undefined);
-        }
-        return this.resolveLookupValue(
-          webUrl, field.lookupListId,
-          field.lookupFieldName || 'Title', csvValue
-        ).then((id: number | undefined) => {
-          if (id !== undefined) {
-            return {
-              fieldName: field.internalName + 'Id',
-              value: id
-            };
-          }
-          throw new Error(
-            strings.ErrorLookupValueNotFound
-              .replace('{0}', csvValue)
-              .replace('{1}', field.displayName || field.internalName)
-          );
-        });
-      }
-
-      case 'LookupMulti': {
-        if (!field.lookupListId) {
-          return Promise.resolve(undefined);
-        }
-        const lookupVals: string[] =
-          csvValue.split(';').map((s: string) => s.trim());
-        // Resolve each value individually to identify which ones fail
-        const lookupPromises: Promise<{ val: string; id: number | undefined }>[] =
-          lookupVals.map((v: string) =>
-            this.resolveLookupValue(
-              webUrl, field.lookupListId, field.lookupFieldName || 'Title', v
-            ).then((id: number | undefined) => ({ val: v, id: id }))
-          );
-        return Promise.all(lookupPromises).then(
-          (results: { val: string; id: number | undefined }[]) => {
-            const resolved: number[] = results
-              .filter((r: { val: string; id: number | undefined }) => r.id !== undefined)
-              .map((r: { val: string; id: number | undefined }) => r.id as number);
-            const unresolved: string[] = results
-              .filter((r: { val: string; id: number | undefined }) => r.id === undefined)
-              .map((r: { val: string; id: number | undefined }) => r.val);
-            if (unresolved.length > 0) {
-              throw new Error(
-                strings.ErrorLookupValuesNotFound
-                  .replace('{0}', unresolved.join(', '))
-                  .replace('{1}', field.displayName || field.internalName)
-              );
-            }
-            return {
-              fieldName: field.internalName + 'Id',
-              value: { results: resolved }
-            };
-          }
-        );
-      }
-
-      case 'User': {
-        return this.resolveUser(webUrl, csvValue)
-          .then((id: number | undefined) => {
-            if (id !== undefined) {
-              return {
-                fieldName: field.internalName + 'Id',
-                value: id
-              };
-            }
-            throw new Error(
-              strings.ErrorUserNotFound
-                .replace('{0}', csvValue)
-                .replace('{1}', field.displayName || field.internalName)
-            );
-          });
-      }
-
-      case 'UserMulti': {
-        const userNames: string[] =
-          csvValue.split(';').map((s: string) => s.trim());
-        // Resolve each user individually to identify which ones fail
-        const userResolvePromises: Promise<{ name: string; id: number | undefined }>[] =
-          userNames.map(
-            (name: string) => this.resolveUser(webUrl, name)
-              .then((id: number | undefined) => ({ name: name, id: id }))
-          );
-        return Promise.all(userResolvePromises).then(
-          (results: { name: string; id: number | undefined }[]) => {
-            const resolvedIds: number[] = results
-              .filter((r: { name: string; id: number | undefined }) => r.id !== undefined)
-              .map((r: { name: string; id: number | undefined }) => r.id as number);
-            const unresolvedNames: string[] = results
-              .filter((r: { name: string; id: number | undefined }) => r.id === undefined)
-              .map((r: { name: string; id: number | undefined }) => r.name);
-            if (unresolvedNames.length > 0) {
-              throw new Error(
-                strings.ErrorUsersNotFound
-                  .replace('{0}', unresolvedNames.join(', '))
-                  .replace('{1}', field.displayName || field.internalName)
-              );
-            }
-            return {
-              fieldName: field.internalName + 'Id',
-              value: { results: resolvedIds }
-            };
-          }
-        );
-      }
-
-      case 'URL': {
-        const parts: string[] = csvValue.split(',');
-        let urlVal: string = parts[0].trim();
-        const desc: string = parts.length > 1
-          ? parts.slice(1).join(',').trim()
-          : '';
-
-        // Auto-prefix protocol if missing
-        if (urlVal && !/^[a-zA-Z][a-zA-Z0-9+\-.]*:\/\//i.test(urlVal)) {
-          urlVal = 'https://' + urlVal;
-        }
-
-        // If no explicit description was given, derive one from the URL
-        let displayDesc: string = desc;
-        if (!displayDesc) {
-          try {
-            // Extract hostname as a readable description
-            const match: RegExpMatchArray =
-              urlVal.match(/^(?:https?:\/\/)?([^\/\?#]+)/i);
-            displayDesc = match ? match[1] : urlVal;
-          } catch (e) {
-            displayDesc = urlVal;
-          }
-        }
-
-        return Promise.resolve({
-          fieldName: field.internalName,
-          value: { Url: urlVal, Description: displayDesc }
-        });
-      }
-
-      case 'TaxonomyFieldType':
-      case 'TaxonomyFieldTypeMulti':
-        // Handled separately after item creation/update
-        console.log(LOG, 'convertFieldValue — skipping taxonomy field',
-          field.internalName, '(handled post-create)');
-        return Promise.resolve(undefined);
-
-      default:
-        return Promise.resolve(undefined);
-    }
   }
 
   // ─── Private Helpers ───────────────────────────────────────────
@@ -937,63 +608,6 @@ export default class CsvUploadService {
         }
         return undefined;
       });
-  }
-
-  private _parseBooleanValue(value: string): boolean {
-    const lower: string = value.toLowerCase().trim();
-    return lower === 'true' || lower === '1' ||
-      lower === 'ja' || lower === 'yes' || lower === 'wahr';
-  }
-
-  private _parseDateValue(value: string): string | undefined {
-    if (!value || value.trim() === '') {
-      return undefined;
-    }
-
-    let date: Date;
-
-    // German format: DD.MM.YYYY or DD.MM.YYYY HH:MM:SS
-    const germanMatch: RegExpMatchArray | undefined =
-      value.match(
-        /^(\d{1,2})\.(\d{1,2})\.(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/
-      );
-    if (germanMatch) {
-      const day: number = parseInt(germanMatch[1], 10);
-      const month: number = parseInt(germanMatch[2], 10) - 1;
-      const year: number = parseInt(germanMatch[3], 10);
-      const hours: number = germanMatch[4]
-        ? parseInt(germanMatch[4], 10) : 0;
-      const minutes: number = germanMatch[5]
-        ? parseInt(germanMatch[5], 10) : 0;
-      const seconds: number = germanMatch[6]
-        ? parseInt(germanMatch[6], 10) : 0;
-      date = new Date(year, month, day, hours, minutes, seconds);
-      if (!isNaN(date.getTime())) {
-        return date.toISOString();
-      }
-    }
-
-    // ISO format or US format
-    date = new Date(value);
-    if (!isNaN(date.getTime())) {
-      return date.toISOString();
-    }
-
-    // MM/DD/YYYY
-    const usMatch: RegExpMatchArray | undefined =
-      value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (usMatch) {
-      date = new Date(
-        parseInt(usMatch[3], 10),
-        parseInt(usMatch[1], 10) - 1,
-        parseInt(usMatch[2], 10)
-      );
-      if (!isNaN(date.getTime())) {
-        return date.toISOString();
-      }
-    }
-
-    return undefined;
   }
 
   private _escapeODataValue(value: string): string {

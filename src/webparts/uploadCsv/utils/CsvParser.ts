@@ -111,7 +111,6 @@ export function decodeCsvBytes(buffer: ArrayBuffer): string {
   // Check for UTF-8 BOM
   if (bytes.length >= 3
     && bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
-    console.log('[CsvParser] decodeCsvBytes — UTF-8 BOM detected');
     const decoder: TextDecoder = new TextDecoder('utf-8');
     return decoder.decode(bytes.slice(3));
   }
@@ -119,21 +118,17 @@ export function decodeCsvBytes(buffer: ArrayBuffer): string {
   // Check for UTF-16 LE BOM
   if (bytes.length >= 2
     && bytes[0] === 0xFF && bytes[1] === 0xFE) {
-    console.log('[CsvParser] decodeCsvBytes — UTF-16 LE BOM detected');
     const decoder: TextDecoder = new TextDecoder('utf-16le');
     return decoder.decode(bytes.slice(2));
   }
 
   // Check if bytes are valid UTF-8 by scanning manually
   if (_isValidUtf8(bytes)) {
-    console.log('[CsvParser] decodeCsvBytes — valid UTF-8 (no BOM)');
     const decoder: TextDecoder = new TextDecoder('utf-8');
     return decoder.decode(bytes);
   }
 
   // Not valid UTF-8 → decode as Windows-1252
-  console.log('[CsvParser] decodeCsvBytes — not valid UTF-8,',
-    'decoding as Windows-1252');
   return _decodeWindows1252(bytes);
 }
 

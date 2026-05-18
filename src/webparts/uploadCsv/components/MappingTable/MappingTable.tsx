@@ -5,6 +5,7 @@ import { Toggle } from 'office-ui-fabric-react/lib/Toggle';
 import { TextField } from 'office-ui-fabric-react/lib/TextField';
 import styles from '../UploadCsv.module.scss';
 import { IFieldMapping } from '../../models';
+import { isKeyEligible } from '../../utils/MappingHelpers';
 import * as strings from 'UploadCsvWebPartStrings';
 
 export interface IMappingTableProps {
@@ -50,13 +51,7 @@ export default class MappingTable extends React.Component<IMappingTableProps, {}
 
     // SharePoint cannot use these field types in OData filter
     // expressions, so they must not be used as key columns.
-    const canBeKeyColumn: boolean =
-      mapping.listField.fieldType !== 'TaxonomyFieldType' &&
-      mapping.listField.fieldType !== 'TaxonomyFieldTypeMulti' &&
-      mapping.listField.fieldType !== 'LookupMulti' &&
-      mapping.listField.fieldType !== 'UserMulti' &&
-      mapping.listField.fieldType !== 'MultiChoice' &&
-      mapping.listField.fieldType !== 'Note';
+    const canBeKeyColumn: boolean = isKeyEligible(mapping.listField.fieldType);
 
     const rowClass: string = mapping.listField.required && !mapping.csvColumn
       ? styles.mappingRowRequired
@@ -137,27 +132,18 @@ export default class MappingTable extends React.Component<IMappingTableProps, {}
   }
 
   private _onCsvColumnChanged = (index: number, option: IDropdownOption): void => {
-    const updatedMappings: IFieldMapping[] = this.props.mappings.map(
-      (m: IFieldMapping, i: number) => {
-        if (i === index) {
-          return {
-            ...m,
-            csvColumn: option.key === '' ? undefined : option.key as string
-          };
-        }
-        return m;
-      }
-    );
-    this.props.onMappingChanged(updatedMappings);
+    this._patchMapping(index, {
+      csvColumn: option.key === '' ? undefined : option.key as string
+    });
   }
 
   private _onKeyColumnChanged = (index: number, checked: boolean): void => {
+    // Only one key column at a time — when turning a row on, clear all others.
     const updatedMappings: IFieldMapping[] = this.props.mappings.map(
       (m: IFieldMapping, i: number) => {
         if (i === index) {
           return { ...m, isKeyColumn: checked };
         }
-        // Only one key column at a time
         if (checked) {
           return { ...m, isKeyColumn: false };
         }
@@ -168,25 +154,21 @@ export default class MappingTable extends React.Component<IMappingTableProps, {}
   }
 
   private _onDefaultValueChanged = (index: number, newValue: string): void => {
-    const updatedMappings: IFieldMapping[] = this.props.mappings.map(
-      (m: IFieldMapping, i: number) => {
-        if (i === index) {
-          return { ...m, defaultValue: newValue };
-        }
-        return m;
-      }
-    );
-    this.props.onMappingChanged(updatedMappings);
+    this._patchMapping(index, { defaultValue: newValue });
   }
 
   private _onAllowFillInChanged = (index: number, checked: boolean): void => {
+    this._patchMapping(index, { allowFillIn: checked });
+  }
+
+  /**
+   * Patch a single mapping by index with a partial update, then notify
+   * the parent. Used by every per-row change handler except the key-column
+   * toggle (which has cross-row exclusivity logic).
+   */
+  private _patchMapping(index: number, patch: Partial<IFieldMapping>): void {
     const updatedMappings: IFieldMapping[] = this.props.mappings.map(
-      (m: IFieldMapping, i: number) => {
-        if (i === index) {
-          return { ...m, allowFillIn: checked };
-        }
-        return m;
-      }
+      (m: IFieldMapping, i: number) => i === index ? { ...m, ...patch } : m
     );
     this.props.onMappingChanged(updatedMappings);
   }

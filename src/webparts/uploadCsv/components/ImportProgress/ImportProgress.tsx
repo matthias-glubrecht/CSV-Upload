@@ -3,18 +3,8 @@ import { ProgressIndicator } from 'office-ui-fabric-react/lib/ProgressIndicator'
 import { MessageBar, MessageBarType } from 'office-ui-fabric-react/lib/MessageBar';
 import styles from '../UploadCsv.module.scss';
 import { IImportProgress } from '../../models';
+import { formatString } from '../../utils/ImportHelpers';
 import * as strings from 'UploadCsvWebPartStrings';
-
-/**
- * Simple string formatter: replaces {0}, {1}, ... with supplied arguments.
- */
-// tslint:disable-next-line:no-any
-function formatString(template: string, ...args: any[]): string {
-  return template.replace(/\{(\d+)\}/g, (match: string, index: string) => {
-    const i: number = parseInt(index, 10);
-    return i < args.length ? String(args[i]) : match;
-  });
-}
 
 export interface IImportProgressProps {
   progress: IImportProgress;

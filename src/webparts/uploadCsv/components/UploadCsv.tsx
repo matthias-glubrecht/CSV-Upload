@@ -215,38 +215,29 @@ export default class UploadCsv extends React.Component<IUploadCsvProps, IUploadC
 
   private _onSiteCollectionChanged = (siteCollection: ISiteCollection): void => {
     this.setState({
+      ...this._resetCsvState(),
       selectedSiteCollection: siteCollection,
       selectedWeb: undefined,
       selectedList: undefined,
-      listFields: [],
-      csvData: undefined,
-      csvFileName: undefined,
-      mappings: [],
-      progress: resetProgress()
+      listFields: []
     });
   }
 
   private _onWebChanged = (web: IWeb): void => {
     this.setState({
+      ...this._resetCsvState(),
       selectedWeb: web,
       selectedList: undefined,
-      listFields: [],
-      csvData: undefined,
-      csvFileName: undefined,
-      mappings: [],
-      progress: resetProgress()
+      listFields: []
     });
   }
 
   private _onListChanged = (list: IListInfo): void => {
     this.setState({
+      ...this._resetCsvState(),
       selectedList: list,
       listFields: [],
-      csvData: undefined,
-      csvFileName: undefined,
-      mappings: [],
-      loadingFields: true,
-      progress: resetProgress()
+      loadingFields: true
     });
 
     const webUrl: string = this.state.selectedWeb.url;
@@ -321,13 +312,29 @@ export default class UploadCsv extends React.Component<IUploadCsvProps, IUploadC
 
   private _onReset = (): void => {
     this.setState({
-      csvData: undefined,
-      csvFileName: undefined,
-      mappings: [],
-      progress: resetProgress(),
+      ...this._resetCsvState(),
       errorMessage: undefined,
       fieldError: undefined
     });
+  }
+
+  /**
+   * Return the subset of state that should be reset whenever the
+   * target list, web, or site collection changes — i.e. the CSV
+   * file, the mappings derived from it, and the import progress.
+   */
+  private _resetCsvState(): {
+    csvData: ICsvData | undefined;
+    csvFileName: string | undefined;
+    mappings: IFieldMapping[];
+    progress: IImportProgress;
+  } {
+    return {
+      csvData: undefined,
+      csvFileName: undefined,
+      mappings: [],
+      progress: resetProgress()
+    };
   }
 
   private _clearError = (): void => {

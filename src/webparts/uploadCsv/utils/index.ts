@@ -3,6 +3,12 @@ export {
   parseTaxonomyExportValue,
   resolveDefaultValue,
   extractErrorMessage,
-  resetProgress
+  resetProgress,
+  formatString
 } from './ImportHelpers';
-export { createInitialMappings, allRequiredFieldsMapped } from './MappingHelpers';
+export {
+  createInitialMappings,
+  allRequiredFieldsMapped,
+  isKeyEligible
+} from './MappingHelpers';
+export { LOG } from './log';

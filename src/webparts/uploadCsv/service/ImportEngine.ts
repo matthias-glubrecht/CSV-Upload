@@ -1,5 +1,6 @@
 import CsvUploadService from './CsvUploadService';
 import TaxonomyProcessor from './TaxonomyProcessor';
+import FieldValueConverter, { IFieldValueResult } from './FieldValueConverter';
 import {
   ICsvData,
   IFieldMapping,
@@ -7,10 +8,8 @@ import {
   IFieldErrorInfo,
   FieldErrorDecision
 } from '../models';
-import { resolveDefaultValue, extractErrorMessage } from '../utils/ImportHelpers';
+import { resolveDefaultValue, extractErrorMessage, formatString } from '../utils/ImportHelpers';
 import * as strings from 'UploadCsvWebPartStrings';
-
-const LOG: string = '[CsvUpload]';
 
 /**
  * Callback interface that decouples the import engine from React state.
@@ -37,10 +36,12 @@ export default class ImportEngine {
 
   private _service: CsvUploadService;
   private _taxonomyProcessor: TaxonomyProcessor;
+  private _fieldValueConverter: FieldValueConverter;
 
   constructor(service: CsvUploadService) {
     this._service = service;
     this._taxonomyProcessor = new TaxonomyProcessor(service);
+    this._fieldValueConverter = new FieldValueConverter(service);
   }
 
   /**
@@ -78,17 +79,6 @@ export default class ImportEngine {
       (m: IFieldMapping) =>
         m.listField.fieldType !== 'TaxonomyFieldType' &&
         m.listField.fieldType !== 'TaxonomyFieldTypeMulti'
-    );
-
-    console.log(LOG, 'ImportEngine.run \u2014 activeMappings:', activeMappings.length,
-      'taxonomyMappings:', taxonomyMappings.length,
-      taxonomyMappings.map((m: IFieldMapping) => ({
-        field: m.listField.internalName,
-        type: m.listField.fieldType,
-        csvColumn: m.csvColumn,
-        termSetId: m.listField.termSetId
-      })),
-      'nonTaxonomyMappings:', nonTaxonomyMappings.length
     );
 
     const progress: IImportProgress = {
@@ -262,30 +252,23 @@ export default class ImportEngine {
       // tslint:disable-next-line:no-any
       const itemPromise: Promise<{ Id: number }> = existingItemId !== undefined
         ? service.updateItem(webUrl, listId, existingItemId, fieldValues)
-            .then(() => ({ Id: existingItemId }))
+            .then(() => {
+              progress.updated++;
+              return { Id: existingItemId };
+            })
         : service.createItem(webUrl, listId, fieldValues)
             .then((created: { Id: number }) => {
               progress.created++;
               return created;
             });
 
-      if (existingItemId !== undefined) {
-        itemPromise.then(() => { progress.updated++; });
-      }
-
       return itemPromise.then((item: { Id: number }) => {
         // Handle taxonomy fields
         if (taxMappings.length > 0 && item && item.Id) {
-          console.log(LOG, '_processRow \u2014 processing taxonomy fields for itemId:',
-            item.Id, 'taxMappings:', taxMappings.length);
           return this._taxonomyProcessor.processTaxonomyFields(
             row, webUrl, listId, item.Id, taxMappings,
             headers, rowNum, callbacks.onFieldError
           );
-        } else {
-          console.log(LOG, '_processRow \u2014 no taxonomy processing.',
-            'taxMappings.length:', taxMappings.length,
-            'item:', item ? 'Id=' + item.Id : '(undefined)');
         }
       });
     // tslint:disable-next-line:no-any
@@ -294,10 +277,15 @@ export default class ImportEngine {
       if (error && error.message === '__ABORT_IMPORT__') {
         throw error;
       }
+      // Silent skip: the user explicitly chose to skip this row
+      // in the field-error dialog. Not counted as an error.
+      if (error && error.message === '__SKIP_ROW__') {
+        return;
+      }
       progress.errors++;
       const friendlyMsg: string = extractErrorMessage(error);
       progress.errorMessages.push(
-        strings.ErrorRowPrefix.replace('{0}', String(rowNum)) + friendlyMsg
+        formatString(strings.ErrorRowPrefix, String(rowNum)) + friendlyMsg
       );
       if (progress.errorMessages.length > 100) {
         progress.errorMessages = progress.errorMessages.slice(0, 100);
@@ -318,11 +306,8 @@ export default class ImportEngine {
     csvValue: string,
     rowNum: number,
     callbacks: IImportCallbacks
-    // tslint:disable-next-line:no-any
-  ): Promise<{ fieldName: string; value: any; skipRow?: boolean } | undefined> {
-    const service: CsvUploadService = this._service;
-
-    return service.convertFieldValue(
+  ): Promise<IFieldValueResult | { fieldName: string; value: undefined; skipRow: true } | undefined> {
+    return this._fieldValueConverter.convertFieldValue(
       webUrl, mapping.listField, csvValue, mapping.allowFillIn
     // tslint:disable-next-line:no-any
     ).catch((error: any) => {
